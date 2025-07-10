@@ -6,128 +6,153 @@
     <title>نظام الأسئلة والأجوبة الإسلامي</title>
     <!-- استيراد Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6; /* لون خلفية فاتح */
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
         }
-        /* تخصيص شريط التمرير ليكون أكثر جمالية */
-        ::-webkit-scrollbar {
-            width: 8px;
+        .container {
+            background-color: #ffffff;
+            border-radius: 12px; /* زوايا مستديرة */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 800px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
         }
-        ::-webkit-scrollbar-track {
-            background: #e0e0e0;
-            border-radius: 10px;
+        .input-section {
+            display: flex;
+            gap: 10px;
         }
-        ::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 10px;
+        #questionInput {
+            flex-grow: 1;
+            padding: 12px 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px; /* زوايا مستديرة */
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
+        #questionInput:focus {
+            border-color: #6366f1; /* لون أزرق عند التركيز */
+        }
+        #askButton {
+            background-color: #4f46e5; /* لون أزرق داكن */
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px; /* زوايا مستديرة */
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            white-space: nowrap; /* يمنع الكسر في الأجهزة الصغيرة */
+        }
+        #askButton:hover {
+            background-color: #4338ca; /* لون أزرق أغمق عند التحويم */
+            transform: translateY(-1px); /* تأثير رفع طفيف */
+        }
+        #responseArea {
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px; /* زوايا مستديرة */
+            padding: 15px;
+            min-height: 150px;
+            font-size: 1rem;
+            color: #374151;
+            line-height: 1.6;
+            overflow-y: auto; /* للسماح بالتمرير إذا كان المحتوى طويلاً */
+            max-height: 500px; /* لتحديد أقصى ارتفاع */
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error-message {
+            color: #dc2626; /* لون أحمر */
+            font-weight: 600;
+            text-align: center;
+        }
+        .source-text {
+            font-size: 0.9rem;
+            color: #6b7280;
+            white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #e5e7eb;
         }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
-    <div class="w-full max-w-3xl bg-white shadow-lg rounded-xl p-6 md:p-8">
-        <h1 class="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-6">نظام الأسئلة والأجوبة الإسلامي</h1>
-        <p class="text-center text-gray-600 mb-8">اطرح سؤالك حول أي موضوع إسلامي للحصول على إجابات دقيقة وموثقة من الكتب.</p>
-
-        <!-- منطقة إدخال السؤال -->
-        <div class="mb-6">
-            <textarea id="questionInput"
-                      class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg resize-y min-h-[100px]"
-                      placeholder="اكتب سؤالك هنا، مثلاً: ما هو حكم صلاة الوتر؟"></textarea>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center text-gray-800">نظام الأسئلة والأجوبة الإسلامي</h1>
+        <div class="input-section">
+            <input type="text" id="questionInput" placeholder="اكتب سؤالك هنا...">
+            <button id="askButton">اسأل</button>
         </div>
-
-        <!-- زر البحث -->
-        <div class="flex justify-center mb-8">
-            <button id="askButton"
-                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                اسأل
-            </button>
+        <div id="responseArea" class="response-area">
+            <p class="text-gray-500 text-center">الإجابة ستظهر هنا...</p>
         </div>
-
-        <!-- منطقة عرض الإجابة -->
-        <div id="responseArea" class="bg-gray-50 p-6 rounded-lg border border-gray-200 hidden">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4">الإجابة:</h2>
-            <p id="answerText" class="text-gray-800 leading-relaxed text-lg"></p>
-
-            <div id="sourcesArea" class="mt-6 pt-4 border-t border-gray-200 hidden">
-                <h3 class="text-xl font-semibold text-gray-700 mb-3">المصادر المسترجعة:</h3>
-                <ul id="sourcesList" class="list-disc list-inside text-gray-700 space-y-2">
-                    <!-- المصادر ستضاف هنا بواسطة JavaScript -->
-                </ul>
-            </div>
-        </div>
-
-        <!-- رسالة الخطأ أو التحميل -->
-        <div id="messageArea" class="mt-6 text-center text-red-600 font-medium hidden"></div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const questionInput = document.getElementById('questionInput');
-            const askButton = document.getElementById('askButton');
-            const responseArea = document.getElementById('responseArea');
-            const answerText = document.getElementById('answerText');
-            const sourcesArea = document.getElementById('sourcesArea');
-            const sourcesList = document.getElementById('sourcesList');
-            const messageArea = document.getElementById('messageArea');
+        const questionInput = document.getElementById('questionInput');
+        const askButton = document.getElementById('askButton');
+        const responseArea = document.getElementById('responseArea');
 
-            askButton.addEventListener('click', async () => {
-                const question = questionInput.value.trim();
-                if (!question) {
-                    showMessage('يرجى كتابة سؤال.', 'error');
-                    return;
-                }
+        askButton.addEventListener('click', async () => {
+            const question = questionInput.value.trim();
+            if (!question) {
+                responseArea.innerHTML = '<p class="error-message">الرجاء إدخال سؤال.</p>';
+                return;
+            }
 
-                answerText.textContent = '';
-                sourcesList.innerHTML = '';
-                responseArea.classList.add('hidden');
-                sourcesArea.classList.add('hidden');
-                showMessage('جاري البحث عن الإجابة...', 'loading');
+            responseArea.innerHTML = '<div class="loading-spinner"></div><p class="text-center text-gray-500 mt-2">جاري البحث عن الإجابة...</p>';
+            askButton.disabled = true; // تعطيل الزر أثناء المعالجة
 
-                try {
-                    // ترميز السؤال ليناسب عنوان URL
-                    const encodedQuestion = encodeURIComponent(question);
-                    const apiUrl = `http://127.0.0.1:5000/ask?q=${encodedQuestion}`;
+            const encodedQuestion = encodeURIComponent(question);
+            // هام: استبدل هذا الـ URL بالـ URL الفعلي للواجهة الخلفية (Flask API) الذي حصلت عليه من Render
+            const apiUrl = `YOUR_RENDER_BACKEND_API_URL_HERE/ask?q=${encodedQuestion}`;
 
-                    const response = await fetch(apiUrl);
-                    const data = await response.json();
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
 
-                    if (response.ok) {
-                        answerText.textContent = data.answer;
-                        responseArea.classList.remove('hidden');
-                        showMessage('', 'clear'); // مسح رسالة التحميل
-
-                        if (data.sources_retrieved && data.sources_retrieved.length > 0) {
-                            sourcesArea.classList.remove('hidden');
-                            data.sources_retrieved.forEach(source => {
-                                const listItem = document.createElement('li');
-                                listItem.textContent = source;
-                                sourcesList.appendChild(listItem);
-                            });
-                        }
-                    } else {
-                        showMessage(data.error || 'حدث خطأ غير معروف.', 'error');
+                if (response.ok) {
+                    let htmlContent = `<h2 class="text-xl font-semibold text-gray-700 mb-4">السؤال:</h2><p class="mb-4 text-gray-800">${data.question}</p>`;
+                    htmlContent += `<h2 class="text-xl font-semibold text-gray-700 mb-4">الإجابة:</h2><p class="mb-4 text-gray-800">${data.answer}</p>`;
+                    
+                    if (data.sources_retrieved && data.sources_retrieved.length > 0) {
+                        htmlContent += `<h2 class="text-xl font-semibold text-gray-700 mt-6 mb-2">المصادر المسترجعة:</h2>`;
+                        data.sources_retrieved.forEach(source => {
+                            htmlContent += `<pre class="source-text">${source}</pre>`;
+                        });
                     }
-                } catch (error) {
-                    console.error('خطأ في جلب البيانات:', error);
-                    showMessage('فشل الاتصال بالخادم. يرجى التأكد من أن الـ API يعمل.', 'error');
-                }
-            });
-
-            function showMessage(message, type) {
-                messageArea.textContent = message;
-                messageArea.classList.remove('hidden', 'text-red-600', 'text-blue-600');
-                if (type === 'error') {
-                    messageArea.classList.add('text-red-600');
-                } else if (type === 'loading') {
-                    messageArea.classList.add('text-blue-600');
+                    responseArea.innerHTML = htmlContent;
                 } else {
-                    messageArea.classList.add('hidden'); // إخفاء الرسالة إذا كان النوع 'clear'
+                    responseArea.innerHTML = `<p class="error-message">خطأ: ${data.error || 'حدث خطأ غير معروف.'}</p>`;
                 }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                responseArea.innerHTML = `<p class="error-message">فشل الاتصال بالخادم. يرجى المحاولة مرة أخرى لاحقًا.</p>`;
+            } finally {
+                askButton.disabled = false; // إعادة تمكين الزر
             }
         });
     </script>
