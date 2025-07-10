@@ -1,6 +1,6 @@
 Flask
 elasticsearch
-google-generativeai
+openai
 Flask-Cors
 gunicorn
 ijson
