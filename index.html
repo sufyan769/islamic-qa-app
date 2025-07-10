@@ -33,9 +33,14 @@
         .input-section {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap; /* للسماح للعناصر بالانتقال إلى سطر جديد في الشاشات الصغيرة */
         }
-        #questionInput {
-            flex-grow: 1;
+        .input-field {
+            flex: 1 1 48%; /* لتقسيم المساحة بين حقول الإدخال */
+            min-width: 250px; /* لضمان عدم تضييق الحقول كثيرًا */
+        }
+        #questionInput, #authorInput {
+            width: 100%; /* لجعل حقول الإدخال تملأ المساحة المتاحة */
             padding: 12px 15px;
             border: 1px solid #d1c1b0; /* لون بني فاتح للحدود */
             border-radius: 8px; /* زوايا مستديرة */
@@ -44,7 +49,7 @@
             transition: border-color 0.2s;
             color: #5a3d2b;
         }
-        #questionInput:focus {
+        #questionInput:focus, #authorInput:focus {
             border-color: #8b5e3c; /* لون بني أغمق عند التركيز */
         }
         #askButton {
@@ -57,6 +62,7 @@
             cursor: pointer;
             transition: background-color 0.2s, transform 0.1s;
             white-space: nowrap;
+            flex-shrink: 0; /* لمنع الزر من الانكماش */
         }
         #askButton:hover {
             background-color: #6a4a30; /* لون بني أغمق عند التحويم */
@@ -180,7 +186,12 @@
     <div class="container">
         <h1 class="text-3xl font-bold text-center text-amber-900">نظام الأسئلة والأجوبة الإسلامي</h1>
         <div class="input-section">
-            <input type="text" id="questionInput" placeholder="اكتب سؤالك هنا...">
+            <div class="input-field">
+                <input type="text" id="questionInput" placeholder="اكتب سؤالك هنا...">
+            </div>
+            <div class="input-field">
+                <input type="text" id="authorInput" placeholder="اسم المؤلف (اختياري)...">
+            </div>
             <button id="askButton">اسأل</button>
         </div>
         <div id="responseArea" class="response-area">
@@ -190,6 +201,7 @@
 
     <script>
         const questionInput = document.getElementById('questionInput');
+        const authorInput = document.getElementById('authorInput'); // حقل إدخال المؤلف الجديد
         const askButton = document.getElementById('askButton');
         const responseArea = document.getElementById('responseArea');
 
@@ -213,17 +225,26 @@
 
         askButton.addEventListener('click', async () => {
             const question = questionInput.value.trim();
-            if (!question) {
-                responseArea.innerHTML = '<p class="error-message">الرجاء إدخال سؤال.</p>';
+            const author = authorInput.value.trim(); // الحصول على قيمة حقل المؤلف
+            
+            if (!question && !author) { // يجب إدخال سؤال أو اسم مؤلف على الأقل
+                responseArea.innerHTML = '<p class="error-message">الرجاء إدخال سؤال أو اسم مؤلف.</p>';
                 return;
             }
 
             responseArea.innerHTML = '<div class="loading-spinner"></div><p class="text-center text-gray-500 mt-2">جاري البحث عن المصادر...</p>';
             askButton.disabled = true; // تعطيل الزر أثناء المعالجة
 
-            const encodedQuestion = encodeURIComponent(question);
-            // هام: استبدل هذا الـ URL بالـ URL الفعلي للواجهة الخلفية (Flask API) الذي حصلت عليه من Render
-            const apiUrl = `https://islamic-qa-api-backend.onrender.com/ask?q=${encodedQuestion}`;
+            let apiUrl = `https://islamic-qa-api-backend.onrender.com/ask?`;
+            const params = [];
+
+            if (question) {
+                params.push(`q=${encodeURIComponent(question)}`);
+            }
+            if (author) {
+                params.push(`author=${encodeURIComponent(author)}`); // إضافة اسم المؤلف كمعامل
+            }
+            apiUrl += params.join('&');
 
             try {
                 const response = await fetch(apiUrl);
@@ -263,7 +284,7 @@
                             displaySources.forEach((source, sourceIndex) => {
                                 const fullText = source.text_content;
                                 // تمييز النص قبل الاقتطاع
-                                const highlightedFullText = highlightText(fullText, question);
+                                const highlightedFullText = highlightText(fullText, question); // لا يزال التمييز يعتمد على السؤال
                                 const highlightedTruncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
                                 const needsTruncation = fullText.length > 250;
 
