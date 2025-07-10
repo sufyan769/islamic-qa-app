@@ -98,7 +98,7 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
                     "minimum_should_match": 1 # يجب أن يتطابق واحد على الأقل من شروط 'should'
                 }
             },
-            "size": 15 # عدد النتائج المسترجعة
+            "size": 300 # تم زيادة عدد النتائج المسترجعة إلى 30 للحصول على المزيد من المصادر
         }
         
         res = es.search(index=INDEX_NAME, body=search_body)
@@ -117,40 +117,24 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
         if not context_texts:
             return jsonify({
                 "question": query,
-                "answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لفهم سؤالك."
+                "answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لفهم سؤالك.",
+                "sources_retrieved": [] # التأكد من إرجاع قائمة فارغة للمصادر
             })
 
-        combined_context = "\n---\n".join(context_texts)
-
-        # المطالبة الموجهة لنموذج ChatGPT
-        prompt = (
-            f"بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.\n"
-            f"يجب أن تكون إجابتك شاملة بعد البحث في كل النصوص ولاا تعبر نص فيه علاقة لكلمات البحث ابدا. "
-            f"ابداية الكتابة اكتب ما جاء عن الصحابة ثم ابو حنيفة و مالك اابن انس والشافعي واحمد ابن حنبل واكمل بباقي النصوص بعد ذللك. "
-            f"التزم فقط بالمعلومات الموجودة في النصوص المتاحة ولا تضف أي معرفة خارجية أو آراء شخصية. "
-            f"تأكد من تضمين اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها. "
-            f"**اكتب كلل مقولة كتاب ثم انزلل سطرين فراغ لا تستخدم أي رموز نقطية (مثل * أو -) في الإجابة.** "
-            f"**افصل كل معلومة أو استشهاد جديد بسطرين فارغين (أي سطر جديد ثم سطر فارغ آخر).** "
-            f"إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك بوضوح. "
-            f"إذا كانت النصوص نفسها تميل إلى وجهة نظر معينة، فاذكر أن الإجابة تعكس ما ورد في المصادر المتاحة.\n\n"
-            f"النصوص المتاحة:\n---\n{combined_context}\n---"
-        )
-
-        print(f"إرسال مطالبة إلى ChatGPT:\n{prompt[:500]}...")
+        # تم إزالة استدعاء نموذج OpenAI لأنك لا ترغب في إجابة يتم توليدها
+        # combined_context = "\n---\n".join(context_texts)
+        # prompt = (...)
+        # chat_completion = client.chat.completions.create(...)
+        # answer = chat_completion.choices[0].message.content
         
-        # استدعاء OpenAI API
-        chat_completion = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
-        answer = chat_completion.choices[0].message.content
+        # الإجابة الآن ستكون فارغة أو رسالة تشير إلى عرض المصادر فقط
+        # يمكنك تعديل هذه الرسالة لتناسب احتياجاتك
+        answer_message = "تم استرجاع المصادر ذات الصلة لسؤالك. يرجى مراجعتها." 
         
-        return jsonify({"question": query, "answer": answer, "sources_retrieved": context_texts})
+        return jsonify({"question": query, "answer": answer_message, "sources_retrieved": context_texts})
 
     except Exception as e:
-        print(f"خطأ أثناء معالجة السؤال أو استدعاء OpenAI: {e}")
+        print(f"خطأ أثناء معالجة السؤال أو استدعاء OpenAI (إذا كان لا يزال مفعلاً): {e}")
         return jsonify({"error": "حدث خطأ أثناء معالجة طلبك."}), 500
 
 # 4. تشغيل تطبيق Flask
