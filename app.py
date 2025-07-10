@@ -40,7 +40,7 @@ except ConnectionError as ce:
     print("يرجى التحقق من اتصالك بالإنترنت، إعدادات جدار الحماية، وفلاتر IP في Elastic Cloud.")
     sys.exit(1)
 except AuthenticationException as ae:
-    print(f"خطأ في المصادقة مع Elasticsearch عند بدء تشغيل الـ API (AuthenticationException): {ae}")
+    print(f"خطأ في المصادقة مع Elasticsearch (AuthenticationException): {ae}")
     print("يرجى التحقق من اسم المستخدم وكلمة المرور الخاصة بـ Elastic Cloud. تأكد من أنها مطابقة تمامًا.")
     sys.exit(1)
 except Exception as e:
@@ -68,10 +68,9 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
 
     try:
         # بناء استعلام Elasticsearch لتحسين دقة البحث
-        bool_query_parts = []
-        
+        query_conditions = []
         if query:
-            bool_query_parts.append({
+            query_conditions.append({
                 # الأولوية القصوى: مطابقة العبارة الدقيقة في محتوى النص
                 "match_phrase": {
                     "text_content": {
@@ -80,7 +79,7 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
                     }
                 }
             })
-            bool_query_parts.append({
+            query_conditions.append({
                 # البحث عن الكلمات في محتوى النص، مع اشتراط وجود نسبة معينة منها
                 # مثلاً: "75%" تعني أن 75% من الكلمات في الاستعلام يجب أن تكون موجودة في النص
                 "match": {
@@ -91,7 +90,7 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
                     }
                 }
             })
-            bool_query_parts.append({
+            query_conditions.append({
                 # البحث الأوسع في عناوين الكتب وأسماء المؤلفين
                 "multi_match": {
                     "query": query,
@@ -101,60 +100,57 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
                 }
             })
         
-        # إضافة شرط البحث عن المؤلف إذا تم توفيره
+        author_conditions = []
         if author_query:
-            # استخدام match_phrase للمطابقة الدقيقة لاسم المؤلف
-            bool_query_parts.append({
+            author_conditions.append({
                 "match_phrase": {
                     "author_name": {
                         "query": author_query,
-                        "boost": 100 # تعزيز عالي جداً لضمان أولوية البحث عن المؤلف
+                        "boost": 100 # تعزيز عالي جداً لضمان أولوية البحث عن المؤلف كعبارة دقيقة
                     }
                 }
             })
-            # إضافة شرط "must" في الـ bool query لضمان تطابق المؤلف إذا تم تحديده
+            author_conditions.append({
+                "match": {
+                    "author_name": {
+                        "query": author_query,
+                        "operator": "and", # يجب أن تكون جميع الكلمات موجودة في اسم المؤلف
+                        "boost": 80 # تعزيز عالٍ، لكن أقل قليلاً من المطابقة الدقيقة للعبارة
+                    }
+                }
+            })
+
+        final_query = {}
+
+        if query and author_query:
             # إذا كان هناك سؤال ومؤلف، يجب أن تتطابق كليهما
-            # إذا كان المؤلف فقط، فليكن هو الشرط الوحيد
-            if query:
-                # إذا كان هناك سؤال ومؤلف، سنضع شروط السؤال في 'should'
-                # ونضيف شرط المؤلف كـ 'filter' لضمان وجوده
-                final_query = {
-                    "bool": {
-                        "must": [
-                            {
-                                "bool": {
-                                    "should": bool_query_parts[:-1], # كل شروط السؤال
-                                    "minimum_should_match": 1
-                                }
-                            },
-                            {
-                                "match_phrase": {
-                                    "author_name": {
-                                        "query": author_query
-                                    }
-                                }
-                            }
-                        ]
-                    }
+            final_query = {
+                "bool": {
+                    "must": [
+                        {"bool": {"should": query_conditions, "minimum_should_match": 1}},
+                        {"bool": {"should": author_conditions, "minimum_should_match": 1}} 
+                    ]
                 }
-            else:
-                # إذا كان البحث بالمؤلف فقط
-                final_query = {
-                    "match_phrase": {
-                        "author_name": {
-                            "query": author_query
-                        }
-                    }
-                }
-        else:
+            }
+        elif query:
             # إذا كان البحث بالسؤال فقط
             final_query = {
                 "bool": {
-                    "should": bool_query_parts,
+                    "should": query_conditions,
                     "minimum_should_match": 1
                 }
             }
-
+        elif author_query:
+            # إذا كان البحث بالمؤلف فقط
+            final_query = {
+                "bool": {
+                    "should": author_conditions, 
+                    "minimum_should_match": 1
+                }
+            }
+        else:
+            # هذا الشرط لا ينبغي أن يحدث بسبب التحقق الأولي، ولكن كاحتياطي
+            final_query = {"match_all": {}}
 
         search_body = {
             "query": final_query,
