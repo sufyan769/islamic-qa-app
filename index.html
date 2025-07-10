@@ -92,20 +92,39 @@
             font-weight: 600;
             text-align: center;
         }
-        .source-item {
-            background-color: #fffefb; /* لون أفتح قليلاً للمصدر */
+        .author-group {
+            background-color: #fffefb; /* لون أفتح قليلاً للمجموعة */
             border: 1px solid #e0d0c0; /* حدود خفيفة */
             border-radius: 8px;
             padding: 15px;
-            margin-bottom: 15px;
+            margin-bottom: 20px; /* مسافة أكبر بين مجموعات المؤلفين */
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-            line-height: 1.6;
+        }
+        .author-group-header {
+            font-weight: 700; /* خط أثقل لاسم المؤلف */
+            margin-bottom: 10px;
+            color: #6a4a30; /* لون بني متوسط */
+            font-size: 1.3rem; /* تكبير خط اسم المؤلف */
+            cursor: pointer; /* للإشارة إلى أنه قابل للنقر */
+        }
+        .author-group-header:hover {
+            text-decoration: underline;
+        }
+        .source-item {
+            border-top: 1px dashed #e0d0c0; /* خط فاصل بين المصادر لنفس المؤلف */
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+        .source-item:first-child {
+            border-top: none; /* لا يوجد خط فاصل لأول مصدر في المجموعة */
+            padding-top: 0;
+            margin-top: 0;
         }
         .source-header {
             font-weight: 600;
             margin-bottom: 5px;
-            color: #6a4a30; /* لون بني متوسط */
-            font-size: 1.15rem;
+            color: #8b5e3c; /* لون بني داكن للكتاب */
+            font-size: 1.1rem;
         }
         .source-meta {
             font-size: 0.95rem;
@@ -130,6 +149,23 @@
         .toggle-text-button:hover {
             color: #6a4a30;
         }
+        .show-all-author-sources-button {
+            background-color: #d1c1b0; /* لون زر مختلف */
+            color: #5a3d2b;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: block; /* لجعل الزر يأخذ سطرًا كاملاً */
+            width: fit-content; /* لجعل الزر يتناسب مع المحتوى */
+            margin-top: 15px;
+            text-decoration: none; /* إزالة التسطير الافتراضي */
+        }
+        .show-all-author-sources-button:hover {
+            background-color: #c0b0a0;
+        }
     </style>
 </head>
 <body>
@@ -148,6 +184,9 @@
         const questionInput = document.getElementById('questionInput');
         const askButton = document.getElementById('askButton');
         const responseArea = document.getElementById('responseArea');
+
+        // تخزين المصادر المسترجعة لسهولة الوصول إليها عند التوسيع/الطي
+        let retrievedSourcesData = [];
 
         askButton.addEventListener('click', async () => {
             const question = questionInput.value.trim();
@@ -168,51 +207,181 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    // إخفاء قسم الإجابة تمامًا لأننا لا نستخدمها
-                    // answerText.textContent = data.answer; 
-                    // responseArea.classList.remove('hidden'); 
+                    retrievedSourcesData = data.sources_retrieved || []; // تخزين البيانات الخام
                     
-                    if (data.sources_retrieved && data.sources_retrieved.length > 0) {
-                        let sourcesHtml = `<h2 class="text-xl font-semibold text-amber-900 mb-4">المصادر المسترجعة (${data.sources_retrieved.length}):</h2>`;
-                        data.sources_retrieved.forEach((source, index) => {
-                            const fullText = source.text_content;
-                            const truncatedText = fullText.substring(0, 250) + (fullText.length > 250 ? '...' : '');
-                            const needsTruncation = fullText.length > 250;
+                    if (retrievedSourcesData.length > 0) {
+                        // تجميع المصادر حسب المؤلف
+                        const groupedSources = new Map();
+                        retrievedSourcesData.forEach(source => {
+                            const authorName = source.author_name || 'غير معروف';
+                            if (!groupedSources.has(authorName)) {
+                                groupedSources.set(authorName, []);
+                            }
+                            groupedSources.get(authorName).push(source);
+                        });
+
+                        let sourcesHtml = `<h2 class="text-xl font-semibold text-amber-900 mb-4">المصادر المسترجعة (${retrievedSourcesData.length} نتيجة إجمالية):</h2>`;
+                        const initialSourcesPerAuthor = 3; // عدد المصادر الأولية التي تظهر لكل مؤلف
+
+                        groupedSources.forEach((authorSources, authorName) => {
+                            const totalSourcesForAuthor = authorSources.length;
+                            const displaySources = authorSources.slice(0, initialSourcesPerAuthor);
+                            const hasMoreSources = totalSourcesForAuthor > initialSourcesPerAuthor;
+                            const authorIdClean = authorName.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-'); // لتوليد ID آمن
 
                             sourcesHtml += `
-                                <div class="source-item">
-                                    <div class="source-header">${source.book_title}</div>
-                                    <div class="source-meta">
-                                        المؤلف: ${source.author_name}<br>
-                                        الجزء: ${source.part_number}, الصفحة: ${source.page_number}
+                                <div class="author-group" id="author-group-${authorIdClean}">
+                                    <div class="author-group-header">
+                                        المؤلف: ${authorName} (${totalSourcesForAuthor} نتيجة)
                                     </div>
-                                    <div id="source-text-${index}" class="source-text-truncated">
-                                        ${truncatedText}
+                                    <div class="author-sources-container" id="author-sources-container-${authorIdClean}">
+                            `;
+
+                            displaySources.forEach((source, sourceIndex) => {
+                                const fullText = source.text_content;
+                                const truncatedText = fullText.substring(0, 250) + (fullText.length > 250 ? '...' : '');
+                                const needsTruncation = fullText.length > 250;
+
+                                sourcesHtml += `
+                                    <div class="source-item">
+                                        <div class="source-header">${source.book_title}</div>
+                                        <div class="source-meta">
+                                            الجزء: ${source.part_number}, الصفحة: ${source.page_number}
+                                        </div>
+                                        <div id="source-text-${authorIdClean}-${sourceIndex}" class="source-text-truncated">
+                                            ${truncatedText}
+                                        </div>
+                                        ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorIdClean}" data-source-index="${sourceIndex}" data-expanded="false">عرض النص كاملاً</span>` : ''}
                                     </div>
-                                    ${needsTruncation ? `<span class="toggle-text-button" data-index="${index}" data-expanded="false">عرض النص كاملاً</span>` : ''}
+                                `;
+                            });
+
+                            if (hasMoreSources) {
+                                sourcesHtml += `
+                                    <button class="show-all-author-sources-button" data-author-id="${authorIdClean}" data-expanded="false">
+                                        عرض كل النتائج للمؤلف (${totalSourcesForAuthor})
+                                    </button>
+                                `;
+                            }
+                            sourcesHtml += `
+                                    </div>
                                 </div>
                             `;
                         });
                         responseArea.innerHTML = sourcesHtml;
 
-                        // إضافة مستمعي الأحداث لأزرار التوسيع/الطي
-                        document.querySelectorAll('.toggle-text-button').forEach(button => {
+                        // إضافة مستمعي الأحداث لأزرار التوسيع/الطي للنصوص الفردية
+                        document.querySelectorAll('.toggle-text-button[data-source-index]').forEach(button => {
                             button.addEventListener('click', () => {
-                                const index = button.dataset.index;
-                                const textDiv = document.getElementById(`source-text-${index}`);
+                                const authorId = button.dataset.authorId;
+                                const sourceIndex = parseInt(button.dataset.sourceIndex);
+                                const textDiv = document.getElementById(`source-text-${authorId}-${sourceIndex}`);
                                 const isExpanded = button.dataset.expanded === 'true';
 
+                                // العثور على المصدر الأصلي من البيانات المجمعة
+                                const authorName = Array.from(groupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === authorId);
+                                const originalSource = groupedSources.get(authorName)[sourceIndex];
+
                                 if (isExpanded) {
-                                    textDiv.innerHTML = data.sources_retrieved[index].text_content.substring(0, 250) + '...';
+                                    textDiv.innerHTML = originalSource.text_content.substring(0, 250) + '...';
                                     button.textContent = 'عرض النص كاملاً';
                                     button.dataset.expanded = 'false';
                                 } else {
-                                    textDiv.innerHTML = data.sources_retrieved[index].text_content;
+                                    textDiv.innerHTML = originalSource.text_content;
                                     button.textContent = 'طي النص';
                                     button.dataset.expanded = 'true';
                                 }
                             });
                         });
+
+                        // إضافة مستمعي الأحداث لأزرار "عرض كل النتائج للمؤلف"
+                        document.querySelectorAll('.show-all-author-sources-button').forEach(button => {
+                            button.addEventListener('click', () => {
+                                const authorId = button.dataset.authorId;
+                                const authorSourcesContainer = document.getElementById(`author-sources-container-${authorId}`);
+                                const isExpanded = button.dataset.expanded === 'true';
+
+                                const authorName = Array.from(groupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === authorId);
+                                const allAuthorSources = groupedSources.get(authorName);
+
+                                if (isExpanded) {
+                                    // طي: إعادة عرض المصادر الأولية فقط
+                                    let collapsedHtml = '';
+                                    allAuthorSources.slice(0, initialSourcesPerAuthor).forEach((source, sourceIndex) => {
+                                        const fullText = source.text_content;
+                                        const truncatedText = fullText.substring(0, 250) + (fullText.length > 250 ? '...' : '');
+                                        const needsTruncation = fullText.length > 250;
+                                        collapsedHtml += `
+                                            <div class="source-item">
+                                                <div class="source-header">${source.book_title}</div>
+                                                <div class="source-meta">
+                                                    الجزء: ${source.part_number}, الصفحة: ${source.page_number}
+                                                </div>
+                                                <div id="source-text-${authorId}-${sourceIndex}" class="source-text-truncated">
+                                                    ${truncatedText}
+                                                </div>
+                                                ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorId}" data-source-index="${sourceIndex}" data-expanded="false">عرض النص كاملاً</span>` : ''}
+                                            </div>
+                                        `;
+                                    });
+                                    authorSourcesContainer.innerHTML = collapsedHtml;
+                                    button.textContent = `عرض كل النتائج للمؤلف (${totalSourcesForAuthor})`;
+                                    button.dataset.expanded = 'false';
+                                    // إعادة إضافة مستمعي الأحداث للنصوص الفردية بعد إعادة الترتيب
+                                    addIndividualToggleListeners(authorId, groupedSources);
+
+                                } else {
+                                    // توسيع: عرض كل المصادر
+                                    let expandedHtml = '';
+                                    allAuthorSources.forEach((source, sourceIndex) => {
+                                        const fullText = source.text_content;
+                                        const truncatedText = fullText.substring(0, 250) + (fullText.length > 250 ? '...' : '');
+                                        const needsTruncation = fullText.length > 250;
+                                        expandedHtml += `
+                                            <div class="source-item">
+                                                <div class="source-header">${source.book_title}</div>
+                                                <div class="source-meta">
+                                                    الجزء: ${source.part_number}, الصفحة: ${source.page_number}
+                                                </div>
+                                                <div id="source-text-${authorId}-${sourceIndex}" class="source-text-truncated">
+                                                    ${truncatedText}
+                                                </div>
+                                                ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorId}" data-source-index="${sourceIndex}" data-expanded="false">عرض النص كاملاً</span>` : ''}
+                                            </div>
+                                        `;
+                                    });
+                                    authorSourcesContainer.innerHTML = expandedHtml;
+                                    button.textContent = 'طي كل النتائج للمؤلف';
+                                    button.dataset.expanded = 'true';
+                                    // إعادة إضافة مستمعي الأحداث للنصوص الفردية بعد إعادة الترتيب
+                                    addIndividualToggleListeners(authorId, groupedSources);
+                                }
+                            });
+                        });
+
+                        // دالة مساعدة لإعادة إضافة مستمعي الأحداث للنصوص الفردية
+                        function addIndividualToggleListeners(currentAuthorId, currentGroupedSources) {
+                            document.querySelectorAll(`.toggle-text-button[data-author-id="${currentAuthorId}"]`).forEach(btn => {
+                                btn.addEventListener('click', () => {
+                                    const idx = parseInt(btn.dataset.sourceIndex);
+                                    const txtDiv = document.getElementById(`source-text-${currentAuthorId}-${idx}`);
+                                    const exp = btn.dataset.expanded === 'true';
+                                    
+                                    const authName = Array.from(currentGroupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === currentAuthorId);
+                                    const originalSource = currentGroupedSources.get(authName)[idx];
+
+                                    if (exp) {
+                                        txtDiv.innerHTML = originalSource.text_content.substring(0, 250) + '...';
+                                        btn.textContent = 'عرض النص كاملاً';
+                                        btn.dataset.expanded = 'false';
+                                    } else {
+                                        txtDiv.innerHTML = originalSource.text_content;
+                                        btn.textContent = 'طي النص';
+                                        btn.dataset.expanded = 'true';
+                                    }
+                                });
+                            });
+                        }
 
                     } else {
                         // إذا لم يتم العثور على مصادر، اعرض رسالة خطأ أو رسالة مناسبة
