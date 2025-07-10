@@ -97,6 +97,11 @@ def ask_gemini():
 
         combined_context = "\n---\n".join(context_texts)
 
+        prompt = (
+            f": '{query}'.\n"
+            f".\n\n"
+            f"النصوص المتاحة:\n---\n{combined_context}\n---"
+        )
 
         print(f"إرسال مطالبة إلى Gemini:\n{prompt[:500]}...")
         gemini_response = model.generate_content(prompt)
