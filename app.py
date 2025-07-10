@@ -61,50 +61,104 @@ INDEX_NAME = "islamic_texts"
 @app.route('/ask', methods=['GET'])
 def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini لعدم كسر التوافق مع الواجهة الأمامية
     query = request.args.get('q', '')
+    author_query = request.args.get('author', '') # جلب اسم المؤلف من الطلب
 
-    if not query:
-        return jsonify({"error": "يرجى تقديم سؤال."}), 400
+    if not query and not author_query:
+        return jsonify({"error": "يرجى تقديم سؤال أو اسم مؤلف."}), 400
 
     try:
         # بناء استعلام Elasticsearch لتحسين دقة البحث
-        search_body = {
-            "query": {
-                "bool": {
-                    "should": [
-                        {
-                            # الأولوية القصوى: مطابقة العبارة الدقيقة في محتوى النص
-                            "match_phrase": {
-                                "text_content": {
-                                    "query": query,
-                                    "boost": 50 # تعزيز عالي جداً للمطابقة الدقيقة للعبارة
-                                }
-                            }
-                        },
-                        {
-                            # البحث عن الكلمات في محتوى النص، مع اشتراط وجود نسبة معينة منها
-                            # مثلاً: "75%" تعني أن 75% من الكلمات في الاستعلام يجب أن تكون موجودة في النص
-                            "match": {
-                                "text_content": {
-                                    "query": query,
-                                    "minimum_should_match": "75%", 
-                                    "boost": 5 # تعزيز متوسط
-                                }
-                            }
-                        },
-                        {
-                            # البحث الأوسع في عناوين الكتب وأسماء المؤلفين
-                            "multi_match": {
-                                "query": query,
-                                "fields": ["book_title", "author_name"],
-                                "type": "most_fields",
-                                "boost": 3 # تعزيز أقل قليلاً من مطابقة النص
-                            }
-                        }
-                    ],
-                    "minimum_should_match": 1 # يجب أن يتطابق واحد على الأقل من شروط 'should'
+        bool_query_parts = []
+        
+        if query:
+            bool_query_parts.append({
+                # الأولوية القصوى: مطابقة العبارة الدقيقة في محتوى النص
+                "match_phrase": {
+                    "text_content": {
+                        "query": query,
+                        "boost": 50 # تعزيز عالي جداً للمطابقة الدقيقة للعبارة
+                    }
                 }
-            },
-            "size": -- # تم زيادة عدد النتائج المسترجعة إلى --
+            })
+            bool_query_parts.append({
+                # البحث عن الكلمات في محتوى النص، مع اشتراط وجود نسبة معينة منها
+                # مثلاً: "75%" تعني أن 75% من الكلمات في الاستعلام يجب أن تكون موجودة في النص
+                "match": {
+                    "text_content": {
+                        "query": query,
+                        "minimum_should_match": "75%", 
+                        "boost": 5 # تعزيز متوسط
+                    }
+                }
+            })
+            bool_query_parts.append({
+                # البحث الأوسع في عناوين الكتب وأسماء المؤلفين
+                "multi_match": {
+                    "query": query,
+                    "fields": ["book_title", "author_name"],
+                    "type": "most_fields",
+                    "boost": 3 # تعزيز أقل قليلاً من مطابقة النص
+                }
+            })
+        
+        # إضافة شرط البحث عن المؤلف إذا تم توفيره
+        if author_query:
+            # استخدام match_phrase للمطابقة الدقيقة لاسم المؤلف
+            bool_query_parts.append({
+                "match_phrase": {
+                    "author_name": {
+                        "query": author_query,
+                        "boost": 100 # تعزيز عالي جداً لضمان أولوية البحث عن المؤلف
+                    }
+                }
+            })
+            # إضافة شرط "must" في الـ bool query لضمان تطابق المؤلف إذا تم تحديده
+            # إذا كان هناك سؤال ومؤلف، يجب أن تتطابق كليهما
+            # إذا كان المؤلف فقط، فليكن هو الشرط الوحيد
+            if query:
+                # إذا كان هناك سؤال ومؤلف، سنضع شروط السؤال في 'should'
+                # ونضيف شرط المؤلف كـ 'filter' لضمان وجوده
+                final_query = {
+                    "bool": {
+                        "must": [
+                            {
+                                "bool": {
+                                    "should": bool_query_parts[:-1], # كل شروط السؤال
+                                    "minimum_should_match": 1
+                                }
+                            },
+                            {
+                                "match_phrase": {
+                                    "author_name": {
+                                        "query": author_query
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            else:
+                # إذا كان البحث بالمؤلف فقط
+                final_query = {
+                    "match_phrase": {
+                        "author_name": {
+                            "query": author_query
+                        }
+                    }
+                }
+        else:
+            # إذا كان البحث بالسؤال فقط
+            final_query = {
+                "bool": {
+                    "should": bool_query_parts,
+                    "minimum_should_match": 1
+                }
+            }
+
+
+        search_body = {
+            "query": final_query,
+            "size": 50 # تم زيادة عدد النتائج المسترجعة إلى 50
         }
         
         res = es.search(index=INDEX_NAME, body=search_body)
