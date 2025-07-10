@@ -87,12 +87,30 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
                                 "fields": ["text_content", "book_title", "author_name"],
                                 "type": "most_fields"
                             }
+                        },
+                        {
+                            # إضافة مطابقة العبارة الدقيقة لاسم المؤلف مع تعزيز عالي جدًا
+                            "match_phrase": {
+                                "author_name": {
+                                    "query": query,
+                                    "boost": 10 # تعزيز عالي جدًا لأسماء المؤلفين المطابقة تمامًا
+                                }
+                            }
+                        },
+                        {
+                            # إضافة مطابقة العبارة الدقيقة لعنوان الكتاب مع تعزيز عالي جدًا
+                            "match_phrase": {
+                                "book_title": {
+                                    "query": query,
+                                    "boost": 10 # تعزيز عالي جدًا لعناوين الكتب المطابقة تمامًا
+                                }
+                            }
                         }
                     ],
                     "minimum_should_match": 1 # يجب أن يتطابق واحد على الأقل من شروط 'should'
                 }
             },
-            "size": 500 # تم زيادة عدد النتائج المسترجعة إلى 500
+            "size": 5000 # تم زيادة عدد النتائج المسترجعة إلى 5000
         }
         
         res = es.search(index=INDEX_NAME, body=search_body)
