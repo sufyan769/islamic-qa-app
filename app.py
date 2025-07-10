@@ -12,10 +12,10 @@ app = Flask(__name__)
 CORS(app)
 
 # 1. إعدادات Elasticsearch (للاتصال بـ Elastic Cloud)
-# يتم جلب بيانات الاعتماد من متغيرات البيئة في Render
-CLOUD_ID = os.environ.get("CLOUD_ID")
-ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
-ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
+# استبدل هذه القيم ببيانات اعتماد Elastic Cloud الخاصة بك
+CLOUD_ID = os.environ.get("CLOUD_ID") # يتم جلبها من متغيرات البيئة في Render
+ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME") # يتم جلبها من متغيرات البيئة في Render
+ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD") # يتم جلبها من متغيرات البيئة في Render
 
 # قم بتهيئة عميل Elasticsearch باستخدام CLOUD_ID
 print(f"DEBUG: Attempting to connect to Elastic Cloud with CLOUD_ID: {CLOUD_ID}")
@@ -48,8 +48,6 @@ except Exception as e:
 # اسم الفهرس الذي قمنا بإنشائه
 INDEX_NAME = "islamic_texts"
 
-# تمت إزالة قائمة EXCLUDED_AUTHORS لأنك لا ترغب في استثناء أي مؤلفين
-
 # 2. إعدادات Gemini API
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") # يتم جلبها من متغيرات البيئة في Render
 
@@ -68,35 +66,16 @@ def ask_gemini():
         return jsonify({"error": "يرجى تقديم سؤال."}), 400
 
     try:
-        # بناء استعلام Elasticsearch لتحسين دقة البحث
         search_body = {
             "query": {
-                "bool": {
-                    "should": [
-                        {
-                            # تفضيل البحث عن العبارة الدقيقة في محتوى النص
-                            "match_phrase": {
-                                "text_content": {
-                                    "query": query,
-                                    "boost": 2 # إعطاء أولوية أعلى للمطابقة الدقيقة للعبارة
-                                }
-                            }
-                        },
-                        {
-                            # استخدام multi_match للبحث الأوسع في الحقول الأخرى
-                            "multi_match": {
-                                "query": query,
-                                "fields": ["text_content", "book_title", "author_name"],
-                                "type": "most_fields"
-                            }
-                        }
-                    ],
-                    "minimum_should_match": 1 # يجب أن يتطابق واحد على الأقل من شروط 'should'
+                "multi_match": {
+                    "query": query,
+                    "fields": ["text_content", "book_title", "author_name"],
+                    "type": "most_fields"
                 }
             },
-            "size": 15 # عدد النتائج المسترجعة
+            "size": 15 # تم زيادة عدد النتائج المسترجعة إلى 15
         }
-        
         res = es.search(index=INDEX_NAME, body=search_body)
 
         context_texts = []
@@ -118,19 +97,6 @@ def ask_gemini():
 
         combined_context = "\n---\n".join(context_texts)
 
-        # المطالبة الموجهة لنموذج Gemini
-        prompt = (
-            f"بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.\n"
-            f"يجب أن تكون إجابتك شاملة ودقيقة وموضوعية وحيادية تمامًا. "
-            f"اجمع المعلومات من جميع النصوص ذات الصلة المقدمة، وقدم جميع وجهات النظر المختلفة الموجودة في هذه النصوص حول نفس النقطة بوضوح ودون تحيز. "
-            f"التزم فقط بالمعلومات الموجودة في النصوص المتاحة ولا تضف أي معرفة خارجية أو آراء شخصية. "
-            f"تأكد من تضمين اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها. "
-            f"**لا تستخدم أي رموز نقطية (مثل * أو -) في الإجابة.** "
-            f"**افصل كل معلومة أو استشهاد جديد بسطرين فارغين (أي سطر جديد ثم سطر فارغ آخر).** "
-            f"إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك بوضوح. "
-            f"إذا كانت النصوص نفسها تميل إلى وجهة نظر معينة، فاذكر أن الإجابة تعكس ما ورد في المصادر المتاحة.\n\n"
-            f"النصوص المتاحة:\n---\n{combined_context}\n---"
-        )
 
         print(f"إرسال مطالبة إلى Gemini:\n{prompt[:500]}...")
         gemini_response = model.generate_content(prompt)
