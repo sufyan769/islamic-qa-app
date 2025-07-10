@@ -4,7 +4,8 @@ from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError, AuthenticationException
 import os
 import sys
-import google.generativeai as genai
+# استيراد مكتبة OpenAI بدلاً من Google Generative AI
+import openai 
 from flask_cors import CORS
 
 # تهيئة تطبيق Flask
@@ -50,18 +51,21 @@ INDEX_NAME = "islamic_texts"
 
 # تمت إزالة قائمة EXCLUDED_AUTHORS لأنك لا ترغب في استثناء أي مؤلفين
 
-# 2. إعدادات Gemini API
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") # يتم جلبها من متغيرات البيئة في Render
+# 2. إعدادات OpenAI API (لـ ChatGPT)
+# يتم جلب مفتاح API من متغيرات البيئة في Render
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") 
 
-if not GEMINI_API_KEY:
-    print("تحذير: لم يتم تعيين مفتاح Gemini API. لن تعمل وظيفة الذكاء الاصطناعي.")
+if not OPENAI_API_KEY:
+    print("تحذير: لم يتم تعيين مفتاح OpenAI API. لن تعمل وظيفة الذكاء الاصطناعي.")
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.0-flash')
+# تهيئة عميل OpenAI
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
+# يمكنك تغيير النموذج هنا إلى 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo' أو أي نموذج آخر متاح
+OPENAI_MODEL = "gpt-3.5-turbo" 
 
-# 3. نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج Gemini
+# 3. نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج ChatGPT
 @app.route('/ask', methods=['GET'])
-def ask_gemini():
+def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini لعدم كسر التوافق مع الواجهة الأمامية
     query = request.args.get('q', '')
 
     if not query:
@@ -118,28 +122,35 @@ def ask_gemini():
 
         combined_context = "\n---\n".join(context_texts)
 
-        # المطالبة الموجهة لنموذج Gemini
+        # المطالبة الموجهة لنموذج ChatGPT
         prompt = (
             f"بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.\n"
-            f"يجب أن تبحث في كلل النصوصا. "
+            f"يجب أن تكون إجابتك شاملة ودقيقة وموضوعية وحيادية تمامًا. "
+            f"اجمع المعلومات من جميع النصوص ذات الصلة المقدمة، وقدم جميع وجهات النظر المختلفة الموجودة في هذه النصوص حول نفس النقطة بوضوح ودون تحيز. "
             f"التزم فقط بالمعلومات الموجودة في النصوص المتاحة ولا تضف أي معرفة خارجية أو آراء شخصية. "
             f"تأكد من تضمين اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها. "
             f"**لا تستخدم أي رموز نقطية (مثل * أو -) في الإجابة.** "
             f"**افصل كل معلومة أو استشهاد جديد بسطرين فارغين (أي سطر جديد ثم سطر فارغ آخر).** "
-            f"اكتب ٥٠٠ نتيجة عن كل سوال. "
-            f"إكتب اوللا رآآي ابن تيمية وعلمااء السلف .\n\n"
+            f"إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك بوضوح. "
+            f"إذا كانت النصوص نفسها تميل إلى وجهة نظر معينة، فاذكر أن الإجابة تعكس ما ورد في المصادر المتاحة.\n\n"
             f"النصوص المتاحة:\n---\n{combined_context}\n---"
         )
 
-        print(f"إرسال مطالبة إلى Gemini:\n{prompt[:500]}...")
-        gemini_response = model.generate_content(prompt)
+        print(f"إرسال مطالبة إلى ChatGPT:\n{prompt[:500]}...")
         
-        answer = gemini_response.text
+        # استدعاء OpenAI API
+        chat_completion = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        answer = chat_completion.choices[0].message.content
         
         return jsonify({"question": query, "answer": answer, "sources_retrieved": context_texts})
 
     except Exception as e:
-        print(f"خطأ أثناء معالجة السؤال أو استدعاء Gemini: {e}")
+        print(f"خطأ أثناء معالجة السؤال أو استدعاء OpenAI: {e}")
         return jsonify({"error": "حدث خطأ أثناء معالجة طلبك."}), 500
 
 # 4. تشغيل تطبيق Flask
