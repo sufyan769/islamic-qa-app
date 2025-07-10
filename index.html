@@ -166,6 +166,14 @@
         .show-all-author-sources-button:hover {
             background-color: #c0b0a0;
         }
+        /* نمط للكلمات المميزة في النص */
+        .highlight {
+            background-color: #fcd34d; /* لون أصفر فاتح للتمييز */
+            color: #92400e; /* لون بني غامق للكلمة المميزة */
+            font-weight: bold;
+            padding: 1px 3px;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body>
@@ -187,6 +195,21 @@
 
         // تخزين المصادر المسترجعة لسهولة الوصول إليها عند التوسيع/الطي
         let retrievedSourcesData = [];
+
+        // دالة لتمييز كلمات البحث في النص
+        function highlightText(text, query) {
+            if (!query || !text) return text;
+            // تقسيم الاستعلام إلى كلمات (بناءً على المسافات)
+            const queryWords = query.split(/\s+/).filter(word => word.length > 0);
+            if (queryWords.length === 0) return text;
+
+            // إنشاء تعبير عادي (Regular Expression) للبحث عن أي من الكلمات
+            // استخدام 'gi' للبحث العام (global) وغير الحساس لحالة الأحرف (case-insensitive)
+            const regex = new RegExp(queryWords.join('|'), 'gi');
+            
+            // استبدال الكلمات المطابقة بكلمة مميزة
+            return text.replace(regex, (match) => `<span class="highlight">${match}</span>`);
+        }
 
         askButton.addEventListener('click', async () => {
             const question = questionInput.value.trim();
@@ -239,7 +262,9 @@
 
                             displaySources.forEach((source, sourceIndex) => {
                                 const fullText = source.text_content;
-                                const truncatedText = fullText.substring(0, 250) + (fullText.length > 250 ? '...' : '');
+                                // تمييز النص قبل الاقتطاع
+                                const highlightedFullText = highlightText(fullText, question);
+                                const highlightedTruncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
                                 const needsTruncation = fullText.length > 250;
 
                                 sourcesHtml += `
@@ -249,7 +274,7 @@
                                             الجزء: ${source.part_number}, الصفحة: ${source.page_number}
                                         </div>
                                         <div id="source-text-${authorIdClean}-${sourceIndex}" class="source-text-truncated">
-                                            ${truncatedText}
+                                            ${highlightedTruncatedText}
                                         </div>
                                         ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorIdClean}" data-source-index="${sourceIndex}" data-expanded="false">عرض النص كاملاً</span>` : ''}
                                     </div>
@@ -283,11 +308,14 @@
                                 const originalSource = groupedSources.get(authorName)[sourceIndex];
 
                                 if (isExpanded) {
-                                    textDiv.innerHTML = originalSource.text_content.substring(0, 250) + '...';
+                                    // تمييز النص قبل الاقتطاع
+                                    const highlightedFullText = highlightText(originalSource.text_content, question);
+                                    textDiv.innerHTML = highlightedFullText.substring(0, 250) + '...';
                                     button.textContent = 'عرض النص كاملاً';
                                     button.dataset.expanded = 'false';
                                 } else {
-                                    textDiv.innerHTML = originalSource.text_content;
+                                    const highlightedFullText = highlightText(originalSource.text_content, question);
+                                    textDiv.innerHTML = highlightedFullText;
                                     button.textContent = 'طي النص';
                                     button.dataset.expanded = 'true';
                                 }
@@ -305,11 +333,12 @@
                                 const allAuthorSources = groupedSources.get(authorName);
 
                                 if (isExpanded) {
-                                    // طي: إعادة عرض المصادر الأولية فقط
+                                    // طي: إعادة عرض المصادر الأولية فقط مع التمييز
                                     let collapsedHtml = '';
                                     allAuthorSources.slice(0, initialSourcesPerAuthor).forEach((source, sourceIndex) => {
                                         const fullText = source.text_content;
-                                        const truncatedText = fullText.substring(0, 250) + (fullText.length > 250 ? '...' : '');
+                                        const highlightedFullText = highlightText(fullText, question);
+                                        const truncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
                                         const needsTruncation = fullText.length > 250;
                                         collapsedHtml += `
                                             <div class="source-item">
@@ -328,14 +357,15 @@
                                     button.textContent = `عرض كل النتائج للمؤلف (${totalSourcesForAuthor})`;
                                     button.dataset.expanded = 'false';
                                     // إعادة إضافة مستمعي الأحداث للنصوص الفردية بعد إعادة الترتيب
-                                    addIndividualToggleListeners(authorId, groupedSources);
+                                    addIndividualToggleListeners(authorId, groupedSources, question);
 
                                 } else {
-                                    // توسيع: عرض كل المصادر
+                                    // توسيع: عرض كل المصادر مع التمييز
                                     let expandedHtml = '';
                                     allAuthorSources.forEach((source, sourceIndex) => {
                                         const fullText = source.text_content;
-                                        const truncatedText = fullText.substring(0, 250) + (fullText.length > 250 ? '...' : '');
+                                        const highlightedFullText = highlightText(fullText, question);
+                                        const truncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
                                         const needsTruncation = fullText.length > 250;
                                         expandedHtml += `
                                             <div class="source-item">
@@ -344,9 +374,9 @@
                                                     الجزء: ${source.part_number}, الصفحة: ${source.page_number}
                                                 </div>
                                                 <div id="source-text-${authorId}-${sourceIndex}" class="source-text-truncated">
-                                                    ${truncatedText}
+                                                    ${highlightedFullText}
                                                 </div>
-                                                ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorId}" data-source-index="${sourceIndex}" data-expanded="false">عرض النص كاملاً</span>` : ''}
+                                                ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorId}" data-source-index="${sourceIndex}" data-expanded="true">طي النص</span>` : ''}
                                             </div>
                                         `;
                                     });
@@ -354,13 +384,13 @@
                                     button.textContent = 'طي كل النتائج للمؤلف';
                                     button.dataset.expanded = 'true';
                                     // إعادة إضافة مستمعي الأحداث للنصوص الفردية بعد إعادة الترتيب
-                                    addIndividualToggleListeners(authorId, groupedSources);
+                                    addIndividualToggleListeners(authorId, groupedSources, question);
                                 }
                             });
                         });
 
                         // دالة مساعدة لإعادة إضافة مستمعي الأحداث للنصوص الفردية
-                        function addIndividualToggleListeners(currentAuthorId, currentGroupedSources) {
+                        function addIndividualToggleListeners(currentAuthorId, currentGroupedSources, currentQuestion) {
                             document.querySelectorAll(`.toggle-text-button[data-author-id="${currentAuthorId}"]`).forEach(btn => {
                                 btn.addEventListener('click', () => {
                                     const idx = parseInt(btn.dataset.sourceIndex);
@@ -371,11 +401,13 @@
                                     const originalSource = currentGroupedSources.get(authName)[idx];
 
                                     if (exp) {
-                                        txtDiv.innerHTML = originalSource.text_content.substring(0, 250) + '...';
+                                        const highlightedTruncatedText = highlightText(originalSource.text_content, currentQuestion).substring(0, 250) + '...';
+                                        txtDiv.innerHTML = highlightedTruncatedText;
                                         btn.textContent = 'عرض النص كاملاً';
                                         btn.dataset.expanded = 'false';
                                     } else {
-                                        txtDiv.innerHTML = originalSource.text_content;
+                                        const highlightedFullText = highlightText(originalSource.text_content, currentQuestion);
+                                        txtDiv.innerHTML = highlightedFullText;
                                         btn.textContent = 'طي النص';
                                         btn.dataset.expanded = 'true';
                                     }
