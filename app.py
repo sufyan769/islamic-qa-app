@@ -5,7 +5,8 @@ from elasticsearch.exceptions import ConnectionError, AuthenticationException
 import os
 import sys
 # استيراد مكتبة OpenAI بدلاً من Google Generative AI
-import openai 
+# import openai # لم نعد نحتاجها إذا لم نولد إجابات، ولكن سنبقيها لكي لا نكسر requirements.txt
+
 from flask_cors import CORS
 
 # تهيئة تطبيق Flask
@@ -49,19 +50,12 @@ except Exception as e:
 # اسم الفهرس الذي قمنا بإنشائه
 INDEX_NAME = "islamic_texts"
 
-# تمت إزالة قائمة EXCLUDED_AUTHORS لأنك لا ترغب في استثناء أي مؤلفين
-
-# 2. إعدادات OpenAI API (لـ ChatGPT)
-# يتم جلب مفتاح API من متغيرات البيئة في Render
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") 
-
-if not OPENAI_API_KEY:
-    print("تحذير: لم يتم تعيين مفتاح OpenAI API. لن تعمل وظيفة الذكاء الاصطناعي.")
-
-# تهيئة عميل OpenAI
-client = openai.OpenAI(api_key=OPENAI_API_KEY)
-# يمكنك تغيير النموذج هنا إلى 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo' أو أي نموذج آخر متاح
-OPENAI_MODEL = "gpt-3.5-turbo" 
+# 2. إعدادات OpenAI API (لـ ChatGPT) - لم نعد نستخدمها لتوليد الإجابات
+# OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") 
+# if not OPENAI_API_KEY:
+#     print("تحذير: لم يتم تعيين مفتاح OpenAI API. لن تعمل وظيفة الذكاء الاصطناعي (إذا تم تفعيلها).")
+# client = openai.OpenAI(api_key=OPENAI_API_KEY)
+# OPENAI_MODEL = "gpt-3.5-turbo" 
 
 # 3. نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج ChatGPT
 @app.route('/ask', methods=['GET'])
@@ -98,7 +92,7 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
                     "minimum_should_match": 1 # يجب أن يتطابق واحد على الأقل من شروط 'should'
                 }
             },
-            "size": 300 # تم زيادة عدد النتائج المسترجعة إلى 30 للحصول على المزيد من المصادر
+            "size": 500 # تم زيادة عدد النتائج المسترجعة إلى 500
         }
         
         res = es.search(index=INDEX_NAME, body=search_body)
@@ -106,32 +100,26 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
         context_texts = []
         for hit in res['hits']['hits']:
             source = hit['_source']
-            context_texts.append(
-                f"الكتاب: {source.get('book_title', 'غير معروف')}\n"
-                f"المؤلف: {source.get('author_name', 'غير معروف')}\n"
-                f"الجزء: {source.get('part_number', 'غير معروف')}\n"
-                f"الصفحة: {source.get('page_number', 'غير معروف')}\n"
-                f"النص: {source.get('text_content', 'لا يوجد نص.')}"
-            )
+            context_texts.append({
+                "book_title": source.get('book_title', 'غير معروف'),
+                "author_name": source.get('author_name', 'غير معروف'),
+                "part_number": source.get('part_number', 'غير معروف'),
+                "page_number": source.get('page_number', 'غير معروف'),
+                "text_content": source.get('text_content', 'لا يوجد نص.')
+            })
         
         if not context_texts:
             return jsonify({
                 "question": query,
                 "answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لفهم سؤالك.",
-                "sources_retrieved": [] # التأكد من إرجاع قائمة فارغة للمصادر
+                "sources_retrieved": [] 
             })
 
-        # تم إزالة استدعاء نموذج OpenAI لأنك لا ترغب في إجابة يتم توليدها
-        # combined_context = "\n---\n".join(context_texts)
-        # prompt = (...)
-        # chat_completion = client.chat.completions.create(...)
-        # answer = chat_completion.choices[0].message.content
+        # تم إزالة استدعاء نموذج الذكاء الاصطناعي
+        # الإجابة الآن ستكون فارغة تمامًا
+        answer = "" 
         
-        # الإجابة الآن ستكون فارغة أو رسالة تشير إلى عرض المصادر فقط
-        # يمكنك تعديل هذه الرسالة لتناسب احتياجاتك
-        answer_message = "تم استرجاع المصادر ذات الصلة لسؤالك. يرجى مراجعتها." 
-        
-        return jsonify({"question": query, "answer": answer_message, "sources_retrieved": context_texts})
+        return jsonify({"question": query, "answer": answer, "sources_retrieved": context_texts})
 
     except Exception as e:
         print(f"خطأ أثناء معالجة السؤال أو استدعاء OpenAI (إذا كان لا يزال مفعلاً): {e}")
