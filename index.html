@@ -168,6 +168,10 @@
                 const data = await response.json();
 
                 if (response.ok) {
+                    // إخفاء قسم الإجابة تمامًا لأننا لا نستخدمها
+                    // answerText.textContent = data.answer; 
+                    // responseArea.classList.remove('hidden'); 
+                    
                     if (data.sources_retrieved && data.sources_retrieved.length > 0) {
                         let sourcesHtml = `<h2 class="text-xl font-semibold text-amber-900 mb-4">المصادر المسترجعة (${data.sources_retrieved.length}):</h2>`;
                         data.sources_retrieved.forEach((source, index) => {
@@ -211,6 +215,7 @@
                         });
 
                     } else {
+                        // إذا لم يتم العثور على مصادر، اعرض رسالة خطأ أو رسالة مناسبة
                         responseArea.innerHTML = `<p class="error-message">${data.answer || 'عذراً، لم أجد معلومات ذات صلة في المكتبة.'}</p>`;
                     }
                 } else {
