@@ -10,19 +10,21 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
+            background-color: #fdfaf6; /* لون ورق قديم فاتح */
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             padding: 20px;
+            font-size: 1.1rem; /* تكبير الخط الأساسي */
+            color: #5a3d2b; /* لون بني داكن للنصوص */
         }
         .container {
             background-color: #ffffff;
             border-radius: 12px; /* زوايا مستديرة */
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
             padding: 30px;
-            max-width: 800px;
+            max-width: 900px; /* زيادة عرض الحاوية */
             width: 100%;
             display: flex;
             flex-direction: column;
@@ -35,45 +37,46 @@
         #questionInput {
             flex-grow: 1;
             padding: 12px 15px;
-            border: 1px solid #d1d5db;
+            border: 1px solid #d1c1b0; /* لون بني فاتح للحدود */
             border-radius: 8px; /* زوايا مستديرة */
-            font-size: 1rem;
+            font-size: 1.1rem;
             outline: none;
             transition: border-color 0.2s;
+            color: #5a3d2b;
         }
         #questionInput:focus {
-            border-color: #6366f1; /* لون أزرق عند التركيز */
+            border-color: #8b5e3c; /* لون بني أغمق عند التركيز */
         }
         #askButton {
-            background-color: #4f46e5; /* لون أزرق داكن */
+            background-color: #8b5e3c; /* لون بني داكن للزر */
             color: white;
             padding: 12px 20px;
             border-radius: 8px; /* زوايا مستديرة */
-            font-size: 1rem;
+            font-size: 1.1rem;
             font-weight: 600;
             cursor: pointer;
             transition: background-color 0.2s, transform 0.1s;
-            white-space: nowrap; /* يمنع الكسر في الأجهزة الصغيرة */
+            white-space: nowrap;
         }
         #askButton:hover {
-            background-color: #4338ca; /* لون أزرق أغمق عند التحويم */
-            transform: translateY(-1px); /* تأثير رفع طفيف */
+            background-color: #6a4a30; /* لون بني أغمق عند التحويم */
+            transform: translateY(-1px);
         }
         #responseArea {
-            background-color: #f9fafb;
-            border: 1px solid #e5e7eb;
+            background-color: #fdfaf6; /* نفس لون الخلفية للورق القديم */
+            border: 1px solid #d1c1b0; /* لون بني فاتح للحدود */
             border-radius: 8px; /* زوايا مستديرة */
             padding: 15px;
             min-height: 150px;
-            font-size: 1rem;
-            color: #374151;
-            line-height: 1.6;
-            overflow-y: auto; /* للسماح بالتمرير إذا كان المحتوى طويلاً */
-            max-height: 500px; /* لتحديد أقصى ارتفاع */
+            font-size: 1.1rem;
+            color: #5a3d2b;
+            line-height: 1.8; /* زيادة تباعد الأسطر */
+            overflow-y: auto;
+            max-height: 600px; /* زيادة أقصى ارتفاع */
         }
         .loading-spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
-            border-top: 4px solid #4f46e5;
+            border-top: 4px solid #8b5e3c; /* لون بني للسبينر */
             border-radius: 50%;
             width: 24px;
             height: 24px;
@@ -85,29 +88,59 @@
             100% { transform: rotate(360deg); }
         }
         .error-message {
-            color: #dc2626; /* لون أحمر */
+            color: #dc2626;
             font-weight: 600;
             text-align: center;
         }
-        .source-text {
-            font-size: 0.9rem;
-            color: #6b7280;
-            white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
+        .source-item {
+            background-color: #fffefb; /* لون أفتح قليلاً للمصدر */
+            border: 1px solid #e0d0c0; /* حدود خفيفة */
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            line-height: 1.6;
+        }
+        .source-header {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #6a4a30; /* لون بني متوسط */
+            font-size: 1.15rem;
+        }
+        .source-meta {
+            font-size: 0.95rem;
+            color: #8b7367; /* لون بني رمادي */
+            margin-bottom: 10px;
+        }
+        .source-text-truncated {
+            font-size: 1rem;
+            color: #5a3d2b;
             margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px dashed #e5e7eb;
+            white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
+        }
+        .toggle-text-button {
+            color: #8b5e3c;
+            cursor: pointer;
+            text-decoration: underline;
+            font-weight: 600;
+            margin-top: 5px;
+            display: inline-block;
+            font-size: 0.95rem;
+        }
+        .toggle-text-button:hover {
+            color: #6a4a30;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="text-3xl font-bold text-center text-gray-800">نظام الأسئلة والأجوبة الإسلامي</h1>
+        <h1 class="text-3xl font-bold text-center text-amber-900">نظام الأسئلة والأجوبة الإسلامي</h1>
         <div class="input-section">
             <input type="text" id="questionInput" placeholder="اكتب سؤالك هنا...">
             <button id="askButton">اسأل</button>
         </div>
         <div id="responseArea" class="response-area">
-            <p class="text-gray-500 text-center">الإجابة ستظهر هنا...</p>
+            <p class="text-gray-500 text-center">المصادر ذات الصلة ستظهر هنا...</p>
         </div>
     </div>
 
@@ -123,27 +156,63 @@
                 return;
             }
 
-            responseArea.innerHTML = '<div class="loading-spinner"></div><p class="text-center text-gray-500 mt-2">جاري البحث عن الإجابة...</p>';
+            responseArea.innerHTML = '<div class="loading-spinner"></div><p class="text-center text-gray-500 mt-2">جاري البحث عن المصادر...</p>';
             askButton.disabled = true; // تعطيل الزر أثناء المعالجة
 
             const encodedQuestion = encodeURIComponent(question);
             // هام: استبدل هذا الـ URL بالـ URL الفعلي للواجهة الخلفية (Flask API) الذي حصلت عليه من Render
-            const apiUrl = `https://islamic-qa-api-backend.onrender.com/ask?q=${encodedQuestion}`;   
+            const apiUrl = `https://islamic-qa-api-backend.onrender.com/ask?q=${encodedQuestion}`;
+
             try {
                 const response = await fetch(apiUrl);
                 const data = await response.json();
 
                 if (response.ok) {
-                    let htmlContent = `<h2 class="text-xl font-semibold text-gray-700 mb-4">السؤال:</h2><p class="mb-4 text-gray-800">${data.question}</p>`;
-                    htmlContent += `<h2 class="text-xl font-semibold text-gray-700 mb-4">الإجابة:</h2><p class="mb-4 text-gray-800">${data.answer}</p>`;
-                    
                     if (data.sources_retrieved && data.sources_retrieved.length > 0) {
-                        htmlContent += `<h2 class="text-xl font-semibold text-gray-700 mt-6 mb-2">المصادر المسترجعة:</h2>`;
-                        data.sources_retrieved.forEach(source => {
-                            htmlContent += `<pre class="source-text">${source}</pre>`;
+                        let sourcesHtml = `<h2 class="text-xl font-semibold text-amber-900 mb-4">المصادر المسترجعة (${data.sources_retrieved.length}):</h2>`;
+                        data.sources_retrieved.forEach((source, index) => {
+                            const fullText = source.text_content;
+                            const truncatedText = fullText.substring(0, 250) + (fullText.length > 250 ? '...' : '');
+                            const needsTruncation = fullText.length > 250;
+
+                            sourcesHtml += `
+                                <div class="source-item">
+                                    <div class="source-header">${source.book_title}</div>
+                                    <div class="source-meta">
+                                        المؤلف: ${source.author_name}<br>
+                                        الجزء: ${source.part_number}, الصفحة: ${source.page_number}
+                                    </div>
+                                    <div id="source-text-${index}" class="source-text-truncated">
+                                        ${truncatedText}
+                                    </div>
+                                    ${needsTruncation ? `<span class="toggle-text-button" data-index="${index}" data-expanded="false">عرض النص كاملاً</span>` : ''}
+                                </div>
+                            `;
                         });
+                        responseArea.innerHTML = sourcesHtml;
+
+                        // إضافة مستمعي الأحداث لأزرار التوسيع/الطي
+                        document.querySelectorAll('.toggle-text-button').forEach(button => {
+                            button.addEventListener('click', () => {
+                                const index = button.dataset.index;
+                                const textDiv = document.getElementById(`source-text-${index}`);
+                                const isExpanded = button.dataset.expanded === 'true';
+
+                                if (isExpanded) {
+                                    textDiv.innerHTML = data.sources_retrieved[index].text_content.substring(0, 250) + '...';
+                                    button.textContent = 'عرض النص كاملاً';
+                                    button.dataset.expanded = 'false';
+                                } else {
+                                    textDiv.innerHTML = data.sources_retrieved[index].text_content;
+                                    button.textContent = 'طي النص';
+                                    button.dataset.expanded = 'true';
+                                }
+                            });
+                        });
+
+                    } else {
+                        responseArea.innerHTML = `<p class="error-message">${data.answer || 'عذراً، لم أجد معلومات ذات صلة في المكتبة.'}</p>`;
                     }
-                    responseArea.innerHTML = htmlContent;
                 } else {
                     responseArea.innerHTML = `<p class="error-message">خطأ: ${data.error || 'حدث خطأ غير معروف.'}</p>`;
                 }
