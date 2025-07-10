@@ -13,13 +13,13 @@ CORS(app)
 
 # 1. إعدادات Elasticsearch (للاتصال بـ Elastic Cloud)
 # استبدل هذه القيم ببيانات اعتماد Elastic Cloud الخاصة بك
-CLOUD_ID = "9170e3ac227b4344a09e8ec7ed41caab:ZXVyb3BlLXdlc3QxLmdjcC5jbG91ZC5lcy5pbzo0NDMkMTAyNjY1MWRkNzQ5NDhkZDk3NDVhOTE0NWNlMzBkYjQkOGM5ZmQ5YWZlODhiNDFjMWE5MmViOWIwNTRiNzE0ZTk=" # هذا هو الـ CLOUD_ID الخاص بك
-ELASTIC_USERNAME = "elastic" # اسم المستخدم الافتراضي
-ELASTIC_PASSWORD = "xJXONVrjnBPe4kk8dGv9ocgj" # **هام: تأكد أن هذه كلمة المرور مطابقة تمامًا لما هو في Elastic Cloud.**
+CLOUD_ID = os.environ.get("CLOUD_ID") # يتم جلبها من متغيرات البيئة في Render
+ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME") # يتم جلبها من متغيرات البيئة في Render
+ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD") # يتم جلبها من متغيرات البيئة في Render
 
 # قم بتهيئة عميل Elasticsearch باستخدام CLOUD_ID
 print(f"DEBUG: Attempting to connect to Elastic Cloud with CLOUD_ID: {CLOUD_ID}")
-print(f"DEBUG: Username: {ELASTIC_USERNAME}, Password length: {len(ELASTIC_PASSWORD)}")
+print(f"DEBUG: Username: {ELASTIC_USERNAME}, Password length: {len(ELASTIC_PASSWORD) if ELASTIC_PASSWORD else 0}")
 
 es = Elasticsearch(
     cloud_id=CLOUD_ID,
@@ -49,7 +49,7 @@ except Exception as e:
 INDEX_NAME = "islamic_texts"
 
 # 2. إعدادات Gemini API
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBqR_-eLF8H1-6YXzDF3cF5V6vsCohZNI4")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") # يتم جلبها من متغيرات البيئة في Render
 
 if not GEMINI_API_KEY:
     print("تحذير: لم يتم تعيين مفتاح Gemini API. لن تعمل وظيفة الذكاء الاصطناعي.")
@@ -74,7 +74,7 @@ def ask_gemini():
                     "type": "most_fields"
                 }
             },
-            "size": 15
+            "size": 15 # تم زيادة عدد النتائج المسترجعة إلى 15
         }
         res = es.search(index=INDEX_NAME, body=search_body)
 
@@ -99,7 +99,8 @@ def ask_gemini():
 
         prompt = (
             f"بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.\n"
-            f"يجب أن تكون إجابتك شاملة ودقيقة، وتجمع المعلومات من جميع النصوص ذات الصلة المقدمة. "
+            f"يجب أن تكون إجابتك شاملة ودقيقة وموضوعية، وتجمع المعلومات من جميع النصوص ذات الصلة المقدمة. "
+            f"إذا كانت هناك وجهات نظر مختلفة في النصوص حول نفس النقطة، اذكرها بوضوح وحيادية. "
             f"تأكد من تضمين اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها. "
             f"**لا تستخدم أي رموز نقطية (مثل * أو -) في الإجابة.** "
             f"**افصل كل معلومة أو استشهاد جديد بسطرين فارغين (أي سطر جديد ثم سطر فارغ آخر).** "
@@ -120,4 +121,4 @@ def ask_gemini():
 
 # 4. تشغيل تطبيق Flask
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=os.environ.get("PORT", 5000)) # استخدام متغير البيئة PORT الذي يوفره Render
