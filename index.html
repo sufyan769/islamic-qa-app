@@ -128,8 +128,7 @@
 
             const encodedQuestion = encodeURIComponent(question);
             // هام: استبدل هذا الـ URL بالـ URL الفعلي للواجهة الخلفية (Flask API) الذي حصلت عليه من Render
-            const apiUrl = `YOUR_RENDER_BACKEND_API_URL_HERE/ask?q=${encodedQuestion}`;
-
+            const apiUrl = `https://islamic-qa-app.onrender.com?q=${encodedQuestion}`;
             try {
                 const response = await fetch(apiUrl);
                 const data = await response.json();
