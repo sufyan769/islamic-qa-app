@@ -1,0 +1,6 @@
+Flask
+elasticsearch
+google-generativeai
+Flask-Cors
+gunicorn
+ijson

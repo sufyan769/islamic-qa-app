@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الأسئلة والأجوبة الإسلامي</title>
+    <!-- استيراد Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* لون خلفية فاتح */
+        }
+        /* تخصيص شريط التمرير ليكون أكثر جمالية */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
+    <div class="w-full max-w-3xl bg-white shadow-lg rounded-xl p-6 md:p-8">
+        <h1 class="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-6">نظام الأسئلة والأجوبة الإسلامي</h1>
+        <p class="text-center text-gray-600 mb-8">اطرح سؤالك حول أي موضوع إسلامي للحصول على إجابات دقيقة وموثقة من الكتب.</p>
+
+        <!-- منطقة إدخال السؤال -->
+        <div class="mb-6">
+            <textarea id="questionInput"
+                      class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg resize-y min-h-[100px]"
+                      placeholder="اكتب سؤالك هنا، مثلاً: ما هو حكم صلاة الوتر؟"></textarea>
+        </div>
+
+        <!-- زر البحث -->
+        <div class="flex justify-center mb-8">
+            <button id="askButton"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                اسأل
+            </button>
+        </div>
+
+        <!-- منطقة عرض الإجابة -->
+        <div id="responseArea" class="bg-gray-50 p-6 rounded-lg border border-gray-200 hidden">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">الإجابة:</h2>
+            <p id="answerText" class="text-gray-800 leading-relaxed text-lg"></p>
+
+            <div id="sourcesArea" class="mt-6 pt-4 border-t border-gray-200 hidden">
+                <h3 class="text-xl font-semibold text-gray-700 mb-3">المصادر المسترجعة:</h3>
+                <ul id="sourcesList" class="list-disc list-inside text-gray-700 space-y-2">
+                    <!-- المصادر ستضاف هنا بواسطة JavaScript -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- رسالة الخطأ أو التحميل -->
+        <div id="messageArea" class="mt-6 text-center text-red-600 font-medium hidden"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const questionInput = document.getElementById('questionInput');
+            const askButton = document.getElementById('askButton');
+            const responseArea = document.getElementById('responseArea');
+            const answerText = document.getElementById('answerText');
+            const sourcesArea = document.getElementById('sourcesArea');
+            const sourcesList = document.getElementById('sourcesList');
+            const messageArea = document.getElementById('messageArea');
+
+            askButton.addEventListener('click', async () => {
+                const question = questionInput.value.trim();
+                if (!question) {
+                    showMessage('يرجى كتابة سؤال.', 'error');
+                    return;
+                }
+
+                answerText.textContent = '';
+                sourcesList.innerHTML = '';
+                responseArea.classList.add('hidden');
+                sourcesArea.classList.add('hidden');
+                showMessage('جاري البحث عن الإجابة...', 'loading');
+
+                try {
+                    // ترميز السؤال ليناسب عنوان URL
+                    const encodedQuestion = encodeURIComponent(question);
+                    const apiUrl = `http://127.0.0.1:5000/ask?q=${encodedQuestion}`;
+
+                    const response = await fetch(apiUrl);
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        answerText.textContent = data.answer;
+                        responseArea.classList.remove('hidden');
+                        showMessage('', 'clear'); // مسح رسالة التحميل
+
+                        if (data.sources_retrieved && data.sources_retrieved.length > 0) {
+                            sourcesArea.classList.remove('hidden');
+                            data.sources_retrieved.forEach(source => {
+                                const listItem = document.createElement('li');
+                                listItem.textContent = source;
+                                sourcesList.appendChild(listItem);
+                            });
+                        }
+                    } else {
+                        showMessage(data.error || 'حدث خطأ غير معروف.', 'error');
+                    }
+                } catch (error) {
+                    console.error('خطأ في جلب البيانات:', error);
+                    showMessage('فشل الاتصال بالخادم. يرجى التأكد من أن الـ API يعمل.', 'error');
+                }
+            });
+
+            function showMessage(message, type) {
+                messageArea.textContent = message;
+                messageArea.classList.remove('hidden', 'text-red-600', 'text-blue-600');
+                if (type === 'error') {
+                    messageArea.classList.add('text-red-600');
+                } else if (type === 'loading') {
+                    messageArea.classList.add('text-blue-600');
+                } else {
+                    messageArea.classList.add('hidden'); // إخفاء الرسالة إذا كان النوع 'clear'
+                }
+            }
+        });
+    </script>
+</body>
+</html>
