@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from elasticsearch import Elasticsearch
 import os
 
 app = Flask(__name__)
-# الاتصال بـ Elasticsearch عبر Render (إن وُجد) أو محليًا
+CORS(app)  # تمكين CORS
+
+# إعداد الاتصال بـ Elasticsearch
 ELASTIC_URL = os.environ.get("ELASTIC_URL", "http://localhost:9200")
 es = Elasticsearch(ELASTIC_URL)
 
@@ -20,12 +23,11 @@ def ask():
     if not query_text:
         return jsonify({"error": "يرجى إدخال سؤال للبحث."}), 400
 
-    # تقسيم الجملة إلى كلمات للبحث عنها كلها
     words = query_text.split()
 
-    # ترتيب النتائج بناءً على عدد الكلمات المتطابقة يدويًا
+    # تحسين البحث: عبارة كاملة + كل كلمة بشكل مستقل
     should_clauses = [
-        {"match_phrase": {"text": query_text}},  # الجملة كاملة
+        {"match_phrase": {"text": query_text}},
         *[{"match": {"text": word}} for word in words]
     ]
 
@@ -65,11 +67,11 @@ def ask():
     ]
 
     response_data = {
-        "total_results": res["hits"]["total"]["value"],
+        "total_results": res["hits"].get("total", {}).get("value", 0),
         "sources_retrieved": sources
     }
 
-    if mode in ["default", "ai-only"]:
+    if mode in ["default", "ai_only"]:
         response_data["claude_answer"] = f"إجابة Claude للسؤال: {query_text}"
         if mode == "default":
             response_data["gemini_answer"] = f"إجابة Gemini للسؤال: {query_text}"
