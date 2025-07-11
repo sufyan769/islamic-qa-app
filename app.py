@@ -6,27 +6,18 @@ import requests
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError, AuthenticationException
 import sys
-# تم حذف استيراد OpenAI (GPT)
-from anthropic import Anthropic # استيراد مكتبة Anthropic لـ Claude
-import json # تم إضافة هذا لمعالجة استجابات JSON من Gemini
+from anthropic import Anthropic
+import json
 
 app = Flask(__name__)
-CORS(app) # تمكين CORS لجميع المسارات
+CORS(app)
 
-# متغيرات البيئة لـ Elasticsearch
 CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
-
-# متغيرات البيئة لمفاتيح API الخاصة بنماذج الذكاء الاصطناعي
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") # مفتاح API لـ Gemini
-# تم حذف متغير البيئة لمفتاح OpenAI API (GPT)
-
-# مفتاح API الخاص بـ Claude (يجب أن يُقرأ من متغيرات البيئة لضمان الأمان)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
-
-# تهيئة عميل Elasticsearch
 es = None
 try:
     if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
@@ -35,28 +26,17 @@ try:
             basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD),
             verify_certs=True,
             ssl_show_warn=False,
-            request_timeout=60 
+            request_timeout=60
         )
-        # التحقق من الاتصال
         if not es.ping():
             raise ValueError("Connection to Elasticsearch failed!")
         print("Successfully connected to Elasticsearch!")
     else:
         print("Elasticsearch environment variables not fully set. Skipping connection.")
-except ConnectionError as ce:
-    print(f"خطأ في الاتصال بـ Elasticsearch (ConnectionError): {ce}")
-    print("يرجى التحقق من اتصالك بالإنترنت، إعدادات جدار الحماية، وفلاتر IP في Elastic Cloud.")
-    sys.exit(1)
-except AuthenticationException as ae:
-    print(f"خطأ في المصادقة مع Elasticsearch (AuthenticationException): {ae}")
-    print("يرجى التحقق من اسم المستخدم وكلمة المرور الخاصة بـ Elastic Cloud. تأكد من أنها مطابقة تمامًا.")
-    sys.exit(1)
-except Exception as e:
-    print(f"حدث خطأ غير متوقع أثناء الاتصال بـ Elasticsearch: {e}")
+except (ConnectionError, AuthenticationException, Exception) as e:
+    print(f"Elasticsearch Error: {e}")
     sys.exit(1)
 
-
-# تهيئة عميل Claude
 claude_client = None
 if ANTHROPIC_API_KEY:
     try:
@@ -67,10 +47,8 @@ if ANTHROPIC_API_KEY:
 else:
     print("ANTHROPIC_API_KEY not set. Claude API will not be available.")
 
-# اسم الفهرس الذي قمنا بإنشائه
 INDEX_NAME = "islamic_texts"
 
-# نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج AI
 @app.route('/ask', methods=['GET'])
 def ask_ai():
     query = request.args.get('q', '')
@@ -82,74 +60,53 @@ def ask_ai():
     sources_retrieved = []
     try:
         if es:
-            # بناء استعلام Elasticsearch لتحسين دقة البحث
-            query_clauses = [] # شروط البحث الخاصة بالسؤال
-            author_clauses = [] # شروط البحث الخاصة بالمؤلف
+            query_clauses = []
+            author_clauses = []
 
             if query:
-                # البحث عن الكلمات الرئيسية في حقول متعددة مع تعزيزات مختلفة
-                query_clauses.append({
-                    "multi_match": {
+                query_clauses += [
+                    {"multi_match": {
                         "query": query,
                         "fields": [
-                            "text_content^3",         # تعزيز عالي لمحتوى النص
-                            "text_content.ngram^2",   # تعزيز للبحث الجزئي (N-gram)
-                            "book_title^1.5",         # تعزيز لعنوان الكتاب
-                            "author_name^1.2"         # تعزيز لاسم المؤلف
-                        ],
-                        "type": "best_fields",  # أخذ النقاط من أفضل حقل مطابق
-                        "fuzziness": "AUTO",    # السماح ببعض الأخطاء الإملائية
-                        "operator": "or"        # مطابقة أي من المصطلحات
-                    }
-                })
-                # مطابقة العبارة الدقيقة مع تعزيز عالي جداً
-                query_clauses.append({
-                    "match_phrase": {
-                        "text_content": {
-                            "query": query,
-                            "boost": 100,           # تعزيز عالي جداً للمطابقة الدقيقة للعبارة
-                            "slop": 2               # السماح بوجود الكلمات متباعدة بمقدار 2 موضع
-                        }
-                    }
-                })
-                # مطابقة جميع الكلمات الرئيسية كشروط إلزامية (AND)
-                query_clauses.append({
-                    "match": {
-                        "text_content": {
-                            "query": query,
-                            "operator": "and",      # يجب أن تكون جميع المصطلحات موجودة
-                            "boost": 20             # تعزيز عالي لوجود جميع المصطلحات
-                        }
-                    }
-                })
-
-            if author_query:
-                # البحث عن اسم المؤلف في حقول متعددة مع تعزيزات
-                author_clauses.append({
-                    "multi_match": {
-                        "query": author_query,
-                        "fields": [
-                            "author_name^5",          # تعزيز عالي جداً لاسم المؤلف
-                            "author_name.ngram^3"     # تعزيز للبحث الجزئي عن اسم المؤلف
+                            "text_content^4",
+                            "text_content.ngram^2",
+                            "book_title^2",
+                            "author_name"
                         ],
                         "type": "best_fields",
+                        "fuzziness": "AUTO",
+                        "operator": "or"
+                    }},
+                    {"match_phrase": {
+                        "text_content": {
+                            "query": query,
+                            "boost": 80,
+                            "slop": 1
+                        }}},
+                    {"match": {
+                        "text_content": {
+                            "query": query,
+                            "operator": "and",
+                            "boost": 20
+                        }}}
+                ]
+
+            if author_query:
+                author_clauses += [
+                    {"multi_match": {
+                        "query": author_query,
+                        "fields": ["author_name^5", "author_name.ngram^3"],
+                        "type": "best_fields",
                         "fuzziness": "AUTO"
-                    }
-                })
-                # مطابقة العبارة الدقيقة لاسم المؤلف مع تعزيز أعلى
-                author_clauses.append({
-                    "match_phrase": {
+                    }},
+                    {"match_phrase": {
                         "author_name": {
                             "query": author_query,
-                            "boost": 150 # تعزيز أعلى لمطابقة عبارة المؤلف الدقيقة
-                        }
-                    }
-                })
-
-            final_query = {}
+                            "boost": 100
+                        }}}
+                ]
 
             if query and author_query:
-                # إذا كان هناك سؤال ومؤلف، يجب أن تتطابق كليهما
                 final_query = {
                     "bool": {
                         "must": [
@@ -159,31 +116,13 @@ def ask_ai():
                     }
                 }
             elif query:
-                # إذا كان البحث بالسؤال فقط
-                final_query = {
-                    "bool": {
-                        "should": query_clauses,
-                        "minimum_should_match": 1
-                    }
-                }
+                final_query = {"bool": {"should": query_clauses, "minimum_should_match": 1}}
             elif author_query:
-                # إذا كان البحث بالمؤلف فقط
-                final_query = {
-                    "bool": {
-                        "should": author_clauses,
-                        "minimum_should_match": 1
-                    }
-                }
+                final_query = {"bool": {"should": author_clauses, "minimum_should_match": 1}}
             else:
-                # هذا الشرط لا ينبغي أن يحدث بسبب التحقق الأولي، ولكن كاحتياطي
                 final_query = {"match_all": {}}
 
-            search_body = {
-                "query": final_query,
-                "size": 50 # تم زيادة عدد النتائج المسترجعة إلى 50
-            }
-            
-            res = es.search(index=INDEX_NAME, body=search_body)
+            res = es.search(index=INDEX_NAME, body={"query": final_query, "size": 50})
 
             for hit in res['hits']['hits']:
                 source = hit['_source']
@@ -192,96 +131,54 @@ def ask_ai():
                     "author_name": source.get('author_name', 'غير معروف'),
                     "part_number": source.get('part_number', 'غير معروف'),
                     "page_number": source.get('page_number', 'غير معروف'),
-                    "text_content": source.get('text_content', 'لا يوجد نص.')
+                    "text_content": source.get('text_content', '')
                 })
-            print(f"Retrieved {len(sources_retrieved)} sources from Elasticsearch.")
-        else:
-            print("Elasticsearch client not initialized. Skipping source retrieval.")
 
-        if not sources_retrieved:
-            # إذا لم يتم العثور على مصادر، لا تزال تحاول توليد إجابة عامة من AI
-            # ولكن قم بتعديل المطالبة لتعكس عدم وجود مصادر محددة
-            print("No sources retrieved from Elasticsearch. AI will answer based on general knowledge.")
-
-        # تحضير السياق لنماذج الذكاء الاصطناعي
-        context_string = "\n\n".join([
+        context = "\n\n".join([
             f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
             for s in sources_retrieved
-        ])
+        ]) or "لا توجد مصادر."
 
-        # --- توليد الإجابة من Gemini 2.0 Flash ---
         gemini_answer = ""
         if GEMINI_API_KEY:
             try:
-                gemini_prompt = f"""
-                بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.
-                يجب أن تتضمن إجابتك اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها.
-                إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك.
-
-                النصوص المتاحة:
+                prompt = f"""
+                أجب عن السؤال التالي: '{query}' بناءً على النصوص:
                 ---
-                {context_string if sources_retrieved else "لا توجد مصادر محددة. أجب بناءً على معرفتك العامة."}
+                {context}
                 ---
+                إذا لم تجد الإجابة، فاذكر ذلك.
                 """
-                
-                gemini_payload = {
-                    "contents": [{"role": "user", "parts": [{"text": gemini_prompt}]}],
-                    "generationConfig": {
-                        "responseMimeType": "text/plain"
-                    }
+                payload = {
+                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                    "generationConfig": {"responseMimeType": "text/plain"}
                 }
-                gemini_api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-                
-                gemini_response = requests.post(gemini_api_url, headers={'Content-Type': 'application/json'}, json=gemini_payload, timeout=30) # زيادة المهلة
-                gemini_response.raise_for_status() 
-                gemini_result = gemini_response.json()
-                
-                if gemini_result.get('candidates') and gemini_result['candidates'][0].get('content') and gemini_result['candidates'][0]['content'].get('parts'):
-                    gemini_answer = gemini_result['candidates'][0]['content']['parts'][0]['text']
-                else:
-                    gemini_answer = "عذراً، لم يتمكن نموذج Gemini من توليد إجابة (هيكل استجابة غير متوقع)."
-                    print(f"DEBUG: Gemini API response structure unexpected: {gemini_result}")
-
-            except requests.exceptions.RequestException as req_err:
-                gemini_answer = f"خطأ في الاتصال بنموذج Gemini: {req_err}"
-                print(f"ERROR: Gemini API request failed: {req_err}")
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+                res = requests.post(url, headers={'Content-Type': 'application/json'}, json=payload, timeout=30)
+                data = res.json()
+                gemini_answer = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '') or "لا توجد إجابة."
             except Exception as e:
-                gemini_answer = f"خطأ في معالجة استجابة Gemini: {e}"
-                print(f"ERROR: Processing Gemini response failed: {e}")
-        else:
-            gemini_answer = "لم يتم تفعيل نموذج Gemini (مفتاح API غير متوفر في متغيرات البيئة)."
+                gemini_answer = f"خطأ من Gemini: {e}"
 
-
-        # --- توليد الإجابة من Claude ---
         claude_answer = ""
         if claude_client:
             try:
                 claude_prompt = f"""
-                بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.
-                يجب أن تتضمن إجابتك اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها.
-                إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك.
-
-                النصوص المتاحة:
+                أجب عن السؤال التالي: '{query}' بناءً على النصوص:
                 ---
-                {context_string if sources_retrieved else "لا توجد مصادر محددة. أجب بناءً على معرفتك العامة."}
+                {context}
                 ---
+                إذا لم تجد الإجابة، فاذكر ذلك.
                 """
-                
                 message = claude_client.messages.create(
-                    model="claude-3-5-sonnet-20241022", # نموذج Claude Sonnet
-                    max_tokens=1000, # الحد الأقصى للتوكنات في الإجابة
-                    messages=[
-                        {"role": "user", "content": claude_prompt}
-                    ]
+                    model="claude-3-5-sonnet-20241022",
+                    max_tokens=1000,
+                    messages=[{"role": "user", "content": claude_prompt}]
                 )
                 claude_answer = message.content[0].text
-                print("Claude API call successful.")
             except Exception as e:
-                claude_answer = f"حدث خطأ أثناء استدعاء Claude API: {e}"
-                print(f"ERROR: Claude API call failed: {e}")
-        else:
-            claude_answer = "لم يتم تفعيل نموذج Claude (مفتاح API غير متوفر في متغيرات البيئة)."
-        
+                claude_answer = f"خطأ من Claude: {e}"
+
         return jsonify({
             "question": query,
             "gemini_answer": gemini_answer,
@@ -290,10 +187,7 @@ def ask_ai():
         })
 
     except Exception as e:
-        print(f"خطأ عام أثناء معالجة السؤال أو استدعاء AI: {e}")
-        # يجب أن نكون أكثر تحديدًا هنا، ولكن هذا سيساعد في اكتشاف الأخطاء
-        return jsonify({"error": f"حدث خطأ أثناء معالجة طلبك: {e}"}), 500
+        return jsonify({"error": f"حدث خطأ: {e}"}), 500
 
-# 4. تشغيل تطبيق Flask
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=os.environ.get("PORT", 5000)) # استخدام متغير البيئة PORT الذي يوفره Render
+    app.run(debug=True, host='0.0.0.0', port=os.environ.get("PORT", 5000))
