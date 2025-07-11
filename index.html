@@ -406,10 +406,18 @@
         }
 
         askButton.addEventListener('click', async () => {
+            console.log("Ask button clicked!"); // رسالة تتبع جديدة
             const question = questionInput.value.trim();
             const author = authorInput.value.trim();
             
             if (!question && !author) {
+                responseArea.classList.remove('hidden'); // تأكد من إظهار منطقة الاستجابة
+                loadingMessage.classList.add('hidden'); // إخفاء رسالة التحميل
+                geminiAnswerContent.innerHTML = '';
+                gptAnswerContent.innerHTML = '';
+                sourcesHeader.classList.add('hidden');
+                sourcesContainer.innerHTML = '';
+                noResultsMessage.classList.add('hidden');
                 responseArea.innerHTML = '<p class="error-message">الرجاء إدخال سؤال أو اسم مؤلف.</p>';
                 return;
             }
