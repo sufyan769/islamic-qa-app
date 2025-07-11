@@ -1,303 +1,220 @@
-# استيراد المكتبات الضرورية
+# -*- coding: utf-8 -*-
 from flask import Flask, request, jsonify
-from elasticsearch import Elasticsearch
-from elasticsearch.exceptions import ConnectionError, AuthenticationException
+from flask_cors import CORS
 import os
-import sys
-import requests # تم إضافة هذا لاستدعاء Gemini API
-from openai import OpenAI # تم إضافة هذا لاستدعاء OpenAI (GPT)
+import requests
+from elasticsearch import Elasticsearch
+# تم حذف استيراد OpenAI (GPT)
+from anthropic import Anthropic # استيراد مكتبة Anthropic لـ Claude
 import json # تم إضافة هذا لمعالجة استجابات JSON من Gemini
 
-from flask_cors import CORS
-
-# تهيئة تطبيق Flask
 app = Flask(__name__)
-CORS(app)
+CORS(app) # تمكين CORS لجميع المسارات
 
-# 1. إعدادات Elasticsearch (للاتصال بـ Elastic Cloud)
-# يتم جلب بيانات الاعتماد من متغيرات البيئة في Render
+# متغيرات البيئة لـ Elasticsearch
 CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
 
-# قم بتهيئة عميل Elasticsearch باستخدام CLOUD_ID
-print(f"DEBUG: Attempting to connect to Elastic Cloud with CLOUD_ID: {CLOUD_ID}")
-print(f"DEBUG: Username: {ELASTIC_USERNAME}, Password length: {len(ELASTIC_PASSWORD) if ELASTIC_PASSWORD else 0}")
+# متغيرات البيئة لمفاتيح API الخاصة بنماذج الذكاء الاصطناعي
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") # مفتاح API لـ Gemini
 
-es = Elasticsearch(
-    cloud_id=CLOUD_ID,
-    basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD),
-    verify_certs=False, # تم تعيين هذا إلى False لتجنب مشاكل الشهادات (غير آمن للإنتاج)
-    ssl_show_warn=True # تمكين تحذيرات SSL لمزيد من التفاصيل
-)
+# مفتاح API الخاص بـ Claude (يجب أن يُقرأ من متغيرات البيئة لضمان الأمان)
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY") # تم التعديل: قراءة المفتاح من متغيرات البيئة
 
-# تحقق من الاتصال بـ Elasticsearch عند بدء تشغيل الـ API
+
+# تهيئة عميل Elasticsearch
+es = None
 try:
-    info_response = es.info()
-    print("تم الاتصال بـ Elasticsearch بنجاح عند بدء تشغيل الـ API.")
-    print(f"DEBUG: Elasticsearch Info: {info_response.body['version']['number']}")
-except ConnectionError as ce:
-    print(f"خطأ في الاتصال بـ Elasticsearch عند بدء تشغيل الـ API (ConnectionError): {ce}")
-    print("يرجى التحقق من اتصالك بالإنترنت، إعدادات جدار الحماية، وفلاتر IP في Elastic Cloud.")
-    sys.exit(1)
-except AuthenticationException as ae:
-    print(f"خطأ في المصادقة مع Elasticsearch (AuthenticationException): {ae}")
-    print("يرجى التحقق من اسم المستخدم وكلمة المرور الخاصة بـ Elastic Cloud. تأكد من أنها مطابقة تمامًا.")
-    sys.exit(1)
+    if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
+        es = Elasticsearch(
+            cloud_id=CLOUD_ID,
+            basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD),
+            verify_certs=True,
+            ssl_show_warn=False,
+            request_timeout=60 
+        )
+        # التحقق من الاتصال
+        if not es.ping():
+            raise ValueError("Connection to Elasticsearch failed!")
+        print("Successfully connected to Elasticsearch!")
+    else:
+        print("Elasticsearch environment variables not fully set. Skipping connection.")
 except Exception as e:
-    print(f"خطأ في الاتصال بـ Elasticsearch عند بدء تشغيل الـ API: {e}")
-    sys.exit(1)
+    print(f"Error connecting to Elasticsearch: {e}")
+    es = None # التأكد من أن es هو None إذا فشل الاتصال
+
+# تهيئة عميل Claude
+claude_client = None
+if ANTHROPIC_API_KEY:
+    try:
+        claude_client = Anthropic(api_key=ANTHROPIC_API_KEY)
+        print("Claude client initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing Claude client: {e}")
+else:
+    print("ANTHROPIC_API_KEY not set. Claude API will not be available.")
 
 # اسم الفهرس الذي قمنا بإنشائه
 INDEX_NAME = "islamic_texts"
 
-# 2. إعدادات AI API (Gemini و GPT)
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") # مفتاح API لـ Gemini
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") # مفتاح API لـ OpenAI (GPT)
-
-# تهيئة عميل OpenAI
-openai_client = None
-if OPENAI_API_KEY:
-    try:
-        openai_client = OpenAI(api_key=OPENAI_API_KEY)
-    except Exception as e:
-        print(f"ERROR: Failed to initialize OpenAI client: {e}")
-        openai_client = None
-else:
-    print("تحذير: لم يتم تعيين مفتاح OpenAI API. لن تعمل وظيفة الذكاء الاصطناعي (GPT).")
-
-# 3. نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج AI
+# نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج AI
 @app.route('/ask', methods=['GET'])
-def ask_ai(): # تم تغيير اسم الدالة ليعكس دعم كلا النموذجين
-    query = request.args.get('q', '')
-    author_query = request.args.get('author', '') # جلب اسم المؤلف من الطلب
+def ask_ai():
+    query_text = request.args.get('q', '')
+    author_name = request.args.get('author', '')
 
-    if not query and not author_query:
-        return jsonify({"error": "يرجى تقديم سؤال أو اسم مؤلف."}), 400
+    if not query_text and not author_name:
+        return jsonify({"error": "Please provide a query or an author name."}), 400
 
-    try:
-        # بناء استعلام Elasticsearch لتحسين دقة البحث
-        query_conditions = []
-        if query:
-            query_conditions.append({
-                # الأولوية القصوى: مطابقة العبارة الدقيقة في محتوى النص
-                "match_phrase": {
-                    "text_content": {
-                        "query": query,
-                        "boost": 50 # تعزيز عالي جداً للمطابقة الدقيقة للعبارة
+    sources_retrieved = []
+    if es:
+        try:
+            search_body = {
+                "query": {
+                    "bool": {
+                        "must": []
                     }
-                }
-            })
-            query_conditions.append({
-                # البحث عن الكلمات في محتوى النص، مع اشتراط وجود نسبة معينة منها
-                # مثلاً: "75%" تعني أن 75% من الكلمات في الاستعلام يجب أن تكون موجودة في النص
-                "match": {
-                    "text_content": {
-                        "query": query,
-                        "minimum_should_match": "75%", 
-                        "boost": 5 # تعزيز متوسط
-                    }
-                }
-            })
-            # إضافة بحث مرن (fuzzy) في حقل text_content.ngram
-            query_conditions.append({
-                "match": {
-                    "text_content.ngram": { # البحث في الحقل الفرعي N-gram
-                        "query": query,
-                        "fuzziness": "AUTO", # السماح ببعض الأخطاء الإملائية
-                        "boost": 10 # تعزيز جيد للبحث المرن
-                    }
-                }
-            })
-            query_conditions.append({
-                # البحث الأوسع في عناوين الكتب وأسماء المؤلفين
-                "multi_match": {
-                    "query": query,
-                    "fields": ["book_title", "author_name"],
-                    "type": "most_fields",
-                    "boost": 3 # تعزيز أقل قليلاً من مطابقة النص
-                }
-            })
-        
-        author_conditions = []
-        if author_query:
-            author_conditions.append({
-                "match_phrase": {
-                    "author_name": {
-                        "query": author_query,
-                        "boost": 100 # تعزيز عالي جداً لضمان أولوية البحث عن المؤلف كعبارة دقيقة
-                    }
-                }
-            })
-            author_conditions.append({
-                "match": {
-                    "author_name": {
-                        "query": author_query,
-                        "operator": "and", # يجب أن تكون جميع الكلمات موجودة في اسم المؤلف
-                        "boost": 80 # تعزيز عالٍ، لكن أقل قليلاً من المطابقة الدقيقة للعبارة
-                    }
-                }
-            })
-            # إضافة بحث مرن (fuzzy) في حقل author_name.ngram
-            author_conditions.append({
-                "match": {
-                    "author_name.ngram": { # البحث في الحقل الفرعي N-gram
-                        "query": author_query,
-                        "fuzziness": "AUTO", # السماح ببعض الأخطاء الإملائية
-                        "boost": 90 # تعزيز عالٍ للبحث المرن عن المؤلف
-                    }
-                }
-            })
+                },
+                "size": 5 # تحديد عدد المصادر المسترجعة بـ 5
+            }
 
-        final_query = {}
+            if query_text:
+                search_body["query"]["bool"]["must"].append({
+                    "multi_match": {
+                        "query": query_text,
+                        "fields": ["text_content", "book_title", "author_name"],
+                        "fuzziness": "AUTO" # السماح بالأخطاء الإملائية البسيطة
+                    }
+                })
+            
+            if author_name:
+                search_body["query"]["bool"]["must"].append({
+                    "match": {
+                        "author_name.keyword": author_name # البحث الدقيق عن اسم المؤلف
+                    }
+                })
 
-        if query and author_query:
-            # إذا كان هناك سؤال ومؤلف، يجب أن تتطابق كليهما
-            final_query = {
-                "bool": {
-                    "must": [
-                        {"bool": {"should": query_conditions, "minimum_should_match": 1}},
-                        {"bool": {"should": author_conditions, "minimum_should_match": 1}} 
-                    ]
+            # إذا لم يتم توفير استعلام أو مؤلف، احصل على بعض المستندات الحديثة
+            if not query_text and not author_name:
+                 search_body = {
+                    "query": {
+                        "match_all": {} # مطابقة كل المستندات
+                    },
+                    "size": 5,
+                    "sort": [{"_score": {"order": "desc"}}] # الترتيب حسب الصلة (relevance)
+                }
+
+            response = es.search(index="islamic_texts", body=search_body)
+            
+            for hit in response['hits']['hits']:
+                source = hit['_source']
+                sources_retrieved.append({
+                    "book_title": source.get("book_title", "N/A"),
+                    "author_name": source.get("author_name", "N/A"),
+                    "part_number": source.get("part_number", "N/A"),
+                    "page_number": source.get("page_number", "N/A"),
+                    "text_content": source.get("text_content", "N/A")
+                })
+            print(f"Retrieved {len(sources_retrieved)} sources from Elasticsearch.")
+
+        except Exception as e:
+            print(f"Error searching Elasticsearch: {e}")
+            # لا ترجع خطأ هنا، استمر في توليد الإجابة حتى لو لم يتم العثور على مصادر
+    else:
+        print("Elasticsearch client not initialized. Skipping source retrieval.")
+
+    gemini_answer = None # تهيئة إجابة Gemini
+    claude_answer = None # تهيئة إجابة Claude
+
+    # --- توليد الإجابة من Gemini 2.0 Flash ---
+    if GEMINI_API_KEY:
+        try:
+            gemini_prompt = f"""
+            بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query_text}'.
+            يجب أن تتضمن إجابتك اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها.
+            إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك.
+
+            النصوص المتاحة:
+            ---
+            {"\n\n".join([
+                f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
+                for s in sources_retrieved
+            ])}
+            ---
+            """
+            
+            gemini_payload = {
+                "contents": [{"role": "user", "parts": [{"text": gemini_prompt}]}],
+                "generationConfig": {
+                    "responseMimeType": "text/plain"
                 }
             }
-        elif query:
-            # إذا كان البحث بالسؤال فقط
-            final_query = {
-                "bool": {
-                    "should": query_conditions,
-                    "minimum_should_match": 1
-                }
-            }
-        elif author_query:
-            # إذا كان البحث بالمؤلف فقط
-            final_query = {
-                "bool": {
-                    "should": author_conditions, 
-                    "minimum_should_match": 1
-                }
-            }
-        else:
-            # هذا الشرط لا ينبغي أن يحدث بسبب التحقق الأولي، ولكن كاحتياطي
-            final_query = {"match_all": {}}
+            gemini_api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+            
+            gemini_response = requests.post(gemini_api_url, headers={'Content-Type': 'application/json'}, json=gemini_payload, timeout=30) # زيادة المهلة
+            gemini_response.raise_for_status() 
+            gemini_result = gemini_response.json()
+            
+            if gemini_result.get('candidates') and gemini_result['candidates'][0].get('content') and gemini_result['candidates'][0]['content'].get('parts'):
+                gemini_answer = gemini_result['candidates'][0]['content']['parts'][0]['text']
+            else:
+                gemini_answer = "عذراً، لم يتمكن نموذج Gemini من توليد إجابة (هيكل استجابة غير متوقع)."
+                print(f"DEBUG: Gemini API response structure unexpected: {gemini_result}")
 
-        search_body = {
-            "query": final_query,
-            "size": 50 # تم زيادة عدد النتائج المسترجعة إلى 50
-        }
-        
-        res = es.search(index=INDEX_NAME, body=search_body)
+        except requests.exceptions.RequestException as req_err:
+            gemini_answer = f"خطأ في الاتصال بنموذج Gemini: {req_err}"
+            print(f"ERROR: Gemini API request failed: {req_err}")
+        except Exception as e:
+            gemini_answer = f"خطأ في معالجة استجابة Gemini: {e}"
+            print(f"ERROR: Processing Gemini response failed: {e}")
+    else:
+        gemini_answer = "لم يتم تفعيل نموذج Gemini (مفتاح API غير متوفر في متغيرات البيئة)."
 
-        context_texts = []
-        for hit in res['hits']['hits']:
-            source = hit['_source']
-            context_texts.append({
-                "book_title": source.get('book_title', 'غير معروف'),
-                "author_name": source.get('author_name', 'غير معروف'),
-                "part_number": source.get('part_number', 'غير معروف'),
-                "page_number": source.get('page_number', 'غير معروف'),
-                "text_content": source.get('text_content', 'لا يوجد نص.')
-            })
-        
-        if not context_texts:
-            return jsonify({
-                "question": query,
-                "gemini_answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لنموذج Gemini.",
-                "gpt_answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لنموذج GPT.",
-                "sources_retrieved": [] 
-            })
+    # --- توليد الإجابة من Claude ---
+    if claude_client:
+        try:
+            prompt_parts = []
+            if query_text:
+                prompt_parts.append(f"السؤال: {query_text}\n")
+            
+            if sources_retrieved:
+                prompt_parts.append("المصادر المسترجعة:\n")
+                for i, source in enumerate(sources_retrieved):
+                    prompt_parts.append(f"--- مصدر {i+1} ---\n")
+                    prompt_parts.append(f"الكتاب: {source['book_title']}\n")
+                    prompt_parts.append(f"المؤلف: {source['author_name']}\n")
+                    prompt_parts.append(f"الجزء: {source['part_number']}, الصفحة: {source['page_number']}\n")
+                    prompt_parts.append(f"النص: {source['text_content']}\n")
+                prompt_parts.append("\n")
+                prompt_parts.append("بناءً على المصادر أعلاه، أجب على السؤال. إذا لم تجد إجابة في المصادر، فاذكر ذلك.\n")
+            else:
+                prompt_parts.append("لم يتم العثور على مصادر. يرجى الإجابة على السؤال بناءً على معرفتك العامة.\n")
 
-        # تحضير السياق لنماذج الذكاء الاصطناعي
-        context_string = "\n\n".join([
-            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
-            for s in context_texts
-        ])
+            full_prompt = "".join(prompt_parts)
 
-        # --- توليد الإجابة من Gemini 2.0 Flash ---
-        gemini_answer = ""
-        if GEMINI_API_KEY:
-            try:
-                gemini_prompt = f"""
-                بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.
-                يجب أن تتضمن إجابتك اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها.
-                إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك.
+            message = claude_client.messages.create(
+                model="claude-3-5-sonnet-20241022", # نموذج Claude Sonnet
+                max_tokens=1000, # الحد الأقصى للتوكنات في الإجابة
+                messages=[
+                    {"role": "user", "content": full_prompt}
+                ]
+            )
+            claude_answer = message.content[0].text
+            print("Claude API call successful.")
+        except Exception as e:
+            claude_answer = f"حدث خطأ أثناء استدعاء Claude API: {e}"
+            print(f"Error calling Claude API: {e}")
+    else:
+        claude_answer = "لم يتم تهيئة عميل Claude API. قد يكون مفتاح ANTHROPIC_API_KEY مفقودًا أو غير صالح."
+        print("Claude API client not available.")
 
-                النصوص المتاحة:
-                ---
-                {context_string}
-                ---
-                """
-                
-                gemini_payload = {
-                    "contents": [{"role": "user", "parts": [{"text": gemini_prompt}]}],
-                    "generationConfig": {
-                        "responseMimeType": "text/plain"
-                    }
-                }
-                gemini_api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-                
-                gemini_response = requests.post(gemini_api_url, headers={'Content-Type': 'application/json'}, json=gemini_payload, timeout=30) # زيادة المهلة
-                gemini_response.raise_for_status() 
-                gemini_result = gemini_response.json()
-                
-                if gemini_result.get('candidates') and gemini_result['candidates'][0].get('content') and gemini_result['candidates'][0]['content'].get('parts'):
-                    gemini_answer = gemini_result['candidates'][0]['content']['parts'][0]['text']
-                else:
-                    gemini_answer = "عذراً، لم يتمكن نموذج Gemini من توليد إجابة (هيكل استجابة غير متوقع)."
-                    print(f"DEBUG: Gemini API response structure unexpected: {gemini_result}")
+    return jsonify({
+        "gemini_answer": gemini_answer,
+        "claude_answer": claude_answer,
+        "sources_retrieved": sources_retrieved
+    })
 
-            except requests.exceptions.RequestException as req_err:
-                gemini_answer = f"خطأ في الاتصال بنموذج Gemini: {req_err}"
-                print(f"ERROR: Gemini API request failed: {req_err}")
-            except Exception as e:
-                gemini_answer = f"خطأ في معالجة استجابة Gemini: {e}"
-                print(f"ERROR: Processing Gemini response failed: {e}")
-        else:
-            gemini_answer = "لم يتم تفعيل نموذج Gemini (مفتاح API غير متوفر في متغيرات البيئة)."
-
-
-        # --- توليد الإجابة من GPT ---
-        gpt_answer = ""
-        if openai_client:
-            try:
-                gpt_prompt = f"""
-                بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.
-                يجب أن تتضمن إجابتك اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها.
-                إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك.
-
-                النصوص المتاحة:
-                ---
-                {context_string}
-                ---
-                """
-                
-                gpt_response = openai_client.chat.completions.create(
-                    model="gpt-3.5-turbo", # يمكنك تغيير النموذج هنا (مثل gpt-4, gpt-4o إذا كان متاحًا)
-                    messages=[
-                        {"role": "system", "content": "أنت مساعد متخصص في الإجابة على الأسئلة الإسلامية بناءً على النصوص المقدمة، مع ذكر المصادر بدقة."},
-                        {"role": "user", "content": gpt_prompt}
-                    ],
-                    max_tokens=500, # تحديد أقصى طول للإجابة
-                    temperature=0.7 # مستوى الإبداع
-                )
-                gpt_answer = gpt_response.choices[0].message.content
-            except Exception as e:
-                gpt_answer = f"خطأ في الاتصال بنموذج GPT: {e}"
-                print(f"ERROR: GPT API call failed: {e}")
-        else:
-            gpt_answer = "لم يتم تفعيل نموذج GPT (مفتاح API غير متوفر في متغيرات البيئة)."
-        
-        return jsonify({
-            "question": query,
-            "gemini_answer": gemini_answer,
-            "gpt_answer": gpt_answer,
-            "sources_retrieved": context_texts
-        })
-
-    except Exception as e:
-        print(f"خطأ عام أثناء معالجة السؤال أو استدعاء AI: {e}")
-        return jsonify({"error": "حدث خطأ أثناء معالجة طلبك."}), 500
-
-# 4. تشغيل تطبيق Flask
 if __name__ == '__main__':
-    app.run(debug=True, port=os.environ.get("PORT", 5000)) # استخدام متغير البيئة PORT الذي يوفره Render
+    # تشغيل التطبيق في وضع التصحيح (debug mode) على المنفذ المحدد بواسطة Render
+    app.run(debug=True, host='0.0.0.0', port=os.environ.get('PORT', 5000))
