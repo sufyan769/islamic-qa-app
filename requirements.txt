@@ -1,6 +1,6 @@
 flask
 elasticsearch
 requests
-openai
 gunicorn
 flask-cors
+anthropic
