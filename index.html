@@ -263,54 +263,62 @@
     </div>
 
     <script type="module">
-        console.log("Script started loading."); // رسالة تتبع جديدة
-        // استيراد Firebase SDKs
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        console.log("Script started loading."); 
+        // تأكد من أن جميع العناصر موجودة قبل محاولة الوصول إليها
+        document.addEventListener('DOMContentLoaded', (event) => {
+            console.log("DOMContentLoaded event fired."); // رسالة تتبع جديدة
+            const questionInput = document.getElementById('questionInput');
+            const authorInput = document.getElementById('authorInput');
+            const askButton = document.getElementById('askButton');
+            console.log("askButton element:", askButton); 
 
-        const questionInput = document.getElementById('questionInput');
-        const authorInput = document.getElementById('authorInput');
-        const askButton = document.getElementById('askButton');
-        console.log("askButton element:", askButton); // رسالة تتبع جديدة: هل تم العثور على الزر؟
-
-        const responseArea = document.getElementById('responseArea');
-        const popularQuestionsList = document.getElementById('popularQuestionsList');
-        // عناصر جديدة لعرض الإجابة والمصادر بشكل منفصل
-        const geminiAnswerContent = document.getElementById('geminiAnswerContent');
-        const gptAnswerContent = document.getElementById('gptAnswerContent');
-        const sourcesHeader = document.getElementById('sourcesHeader');
-        const sourcesContainer = document.getElementById('sourcesContainer');
-        const noResultsMessage = document.getElementById('noResultsMessage');
-        const loadingMessage = document.getElementById('loadingMessage');
+            const responseArea = document.getElementById('responseArea');
+            const popularQuestionsList = document.getElementById('popularQuestionsList');
+            const geminiAnswerContent = document.getElementById('geminiAnswerContent');
+            const gptAnswerContent = document.getElementById('gptAnswerContent');
+            const sourcesHeader = document.getElementById('sourcesHeader');
+            const sourcesContainer = document.getElementById('sourcesContainer');
+            const noResultsMessage = document.getElementById('noResultsMessage');
+            const loadingMessage = document.getElementById('loadingMessage');
 
 
-        let db;
-        let auth;
-        let userId;
-        let isAuthReady = false;
+            let db;
+            let auth;
+            let userId;
+            let isAuthReady = false;
 
-        // تهيئة Firebase
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-        console.log("Firebase initialized."); // رسالة تتبع جديدة
+            // تهيئة Firebase
+            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            console.log("Firebase initialized."); 
 
-        // تسجيل الدخول وتحديد userId
-        onAuthStateChanged(auth, async (user) => {
-            console.log("onAuthStateChanged triggered."); // رسالة تتبع جديدة
-            if (user) {
-                userId = user.uid;
-                console.log("Firebase authenticated. User ID:", userId);
-            } else {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    try {
-                        const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
-                        userId = userCredential.user.uid;
-                        console.log("Signed in with custom token. User ID:", userId);
-                    } catch (error) {
-                        console.error("Error signing in with custom token:", error);
+            // تسجيل الدخول وتحديد userId
+            onAuthStateChanged(auth, async (user) => {
+                console.log("onAuthStateChanged triggered."); 
+                if (user) {
+                    userId = user.uid;
+                    console.log("Firebase authenticated. User ID:", userId);
+                } else {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        try {
+                            const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
+                            userId = userCredential.user.uid;
+                            console.log("Signed in with custom token. User ID:", userId);
+                        } catch (error) {
+                            console.error("Error signing in with custom token:", error);
+                            try {
+                                const userCredential = await signInAnonymously(auth);
+                                userId = userCredential.user.uid;
+                                console.log("Signed in anonymously. User ID:", userId);
+                            } catch (anonError) {
+                                console.error("Error signing in anonymously:", anonError);
+                                userId = crypto.randomUUID();
+                                console.log("Using random User ID (fallback):", userId);
+                            }
+                        }
+                    } else {
                         try {
                             const userCredential = await signInAnonymously(auth);
                             userId = userCredential.user.uid;
@@ -321,365 +329,356 @@
                             console.log("Using random User ID (fallback):", userId);
                         }
                     }
-                } else {
-                    try {
-                        const userCredential = await signInAnonymously(auth);
-                        userId = userCredential.user.uid;
-                        console.log("Signed in anonymously. User ID:", userId);
-                    } catch (anonError) {
-                        console.error("Error signing in anonymously:", anonError);
-                        userId = crypto.randomUUID();
-                        console.log("Using random User ID (fallback):", userId);
-                    }
                 }
+                isAuthReady = true;
+                console.log("isAuthReady set to true. Loading popular questions..."); 
+                loadPopularQuestions(); // تحميل الأسئلة بعد التأكد من جاهزية المصادقة
+            });
+
+            // تخزين المصادر المسترجعة لسهولة الوصول إليها عند التوسيع/الطي
+            let retrievedSourcesData = [];
+
+            // دالة لتمييز كلمات البحث في النص
+            function highlightText(text, query) {
+                if (!query || !text) return text;
+                const queryWords = query.split(/\s+/).filter(word => word.length > 0);
+                if (queryWords.length === 0) return text;
+
+                const regex = new RegExp(queryWords.join('|'), 'gi');
+                return text.replace(regex, (match) => `<span class="highlight">${match}</span>`);
             }
-            isAuthReady = true;
-            console.log("isAuthReady set to true. Loading popular questions..."); // رسالة تتبع جديدة
-            loadPopularQuestions(); // تحميل الأسئلة بعد التأكد من جاهزية المصادقة
-        });
 
-        // تخزين المصادر المسترجعة لسهولة الوصول إليها عند التوسيع/الطي
-        let retrievedSourcesData = [];
-
-        // دالة لتمييز كلمات البحث في النص
-        function highlightText(text, query) {
-            if (!query || !text) return text;
-            const queryWords = query.split(/\s+/).filter(word => word.length > 0);
-            if (queryWords.length === 0) return text;
-
-            const regex = new RegExp(queryWords.join('|'), 'gi');
-            return text.replace(regex, (match) => `<span class="highlight">${match}</span>`);
-        }
-
-        // دالة لحفظ السؤال في Firestore
-        async function saveQuestionToFirestore(questionText) {
-            if (!isAuthReady || !db || !userId) {
-                console.warn("Firebase not ready or User ID not available for saving question.");
-                return;
-            }
-            try {
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/asked_questions`);
-                await addDoc(questionsCollectionRef, {
-                    question: questionText,
-                    timestamp: new Date(),
-                    userId: userId // حفظ معرف المستخدم
-                });
-                console.log("Question saved to Firestore:", questionText);
-            } catch (e) {
-                console.error("Error adding document: ", e);
-            }
-        }
-
-        // دالة لتحميل وعرض الأسئلة الشائعة من Firestore
-        async function loadPopularQuestions() {
-            if (!isAuthReady || !db) {
-                console.warn("Firebase not ready for loading questions.");
-                return;
-            }
-            popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">جاري تحميل الأسئلة...</p>';
-            try {
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/asked_questions`);
-                const q = query(questionsCollectionRef, orderBy("timestamp", "desc"), limit(10)); // جلب أحدث 10 أسئلة
-                const querySnapshot = await getDocs(q);
-
-                popularQuestionsList.innerHTML = ''; // مسح رسالة التحميل
-                if (querySnapshot.empty) {
-                    popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">لا توجد أسئلة سابقة.</p>';
-                } else {
-                    querySnapshot.forEach((doc) => {
-                        const questionData = doc.data();
-                        const listItem = document.createElement('li');
-                        listItem.textContent = questionData.question;
-                        listItem.title = `سؤال طرحه: ${questionData.userId || 'مجهول'}`; // عرض معرف المستخدم عند التحويم
-                        listItem.addEventListener('click', () => {
-                            questionInput.value = questionData.question;
-                            askButton.click(); // محاكاة النقر على زر "اسأل"
-                        });
-                        popularQuestionsList.appendChild(listItem);
-                    });
-                }
-            } catch (e) {
-                console.error("Error loading popular questions: ", e);
-                popularQuestionsList.innerHTML = '<p class="error-message">فشل تحميل الأسئلة الشائعة.</p>';
-            }
-        }
-
-        // التأكد من وجود askButton قبل إضافة مستمع الحدث
-        if (askButton) {
-            askButton.addEventListener('click', async () => {
-                console.log("Ask button click event listener triggered!"); // رسالة تتبع جديدة داخل المستمع
-                const question = questionInput.value.trim();
-                const author = authorInput.value.trim();
-                
-                if (!question && !author) {
-                    responseArea.classList.remove('hidden');
-                    loadingMessage.classList.add('hidden');
-                    geminiAnswerContent.innerHTML = '';
-                    gptAnswerContent.innerHTML = '';
-                    sourcesHeader.classList.add('hidden');
-                    sourcesContainer.innerHTML = '';
-                    noResultsMessage.classList.add('hidden');
-                    responseArea.innerHTML = '<p class="error-message">الرجاء إدخال سؤال أو اسم مؤلف.</p>';
+            // دالة لحفظ السؤال في Firestore
+            async function saveQuestionToFirestore(questionText) {
+                if (!isAuthReady || !db || !userId) {
+                    console.warn("Firebase not ready or User ID not available for saving question.");
                     return;
                 }
-
-                if (question) {
-                    await saveQuestionToFirestore(question);
-                }
-
-                responseArea.classList.remove('hidden');
-                loadingMessage.classList.remove('hidden');
-                geminiAnswerContent.innerHTML = '';
-                gptAnswerContent.innerHTML = '';
-                sourcesHeader.classList.add('hidden');
-                sourcesContainer.innerHTML = '';
-                noResultsMessage.classList.add('hidden');
-                
-                askButton.disabled = true;
-
-                let apiUrl = `https://islamic-qa-api-backend.onrender.com/ask?`;
-                const params = [];
-
-                if (question) {
-                    params.push(`q=${encodeURIComponent(question)}`);
-                }
-                if (author) {
-                    params.push(`author=${encodeURIComponent(author)}`);
-                }
-                apiUrl += params.join('&');
-
                 try {
-                    const response = await fetch(apiUrl);
-                    const data = await response.json();
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/asked_questions`);
+                    await addDoc(questionsCollectionRef, {
+                        question: questionText,
+                        timestamp: new Date(),
+                        userId: userId // حفظ معرف المستخدم
+                    });
+                    console.log("Question saved to Firestore:", questionText);
+                } catch (e) {
+                    console.error("Error adding document: ", e);
+                }
+            }
 
-                    loadingMessage.classList.add('hidden'); 
+            // دالة لتحميل وعرض الأسئلة الشائعة من Firestore
+            async function loadPopularQuestions() {
+                if (!isAuthReady || !db) {
+                    console.warn("Firebase not ready for loading questions.");
+                    return;
+                }
+                popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">جاري تحميل الأسئلة...</p>';
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/asked_questions`);
+                    const q = query(questionsCollectionRef, orderBy("timestamp", "desc"), limit(10)); // جلب أحدث 10 أسئلة
+                    const querySnapshot = await getDocs(q);
 
-                    if (response.ok) {
-                        if (data.gemini_answer) {
-                            geminiAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة Gemini:</h2><p>${data.gemini_answer}</p>`;
-                        } else {
-                            geminiAnswerContent.innerHTML = '';
-                        }
-
-                        if (data.gpt_answer) {
-                            gptAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة GPT:</h2><p>${data.gpt_answer}</p>`;
-                        } else {
-                            gptAnswerContent.innerHTML = '';
-                        }
-
-                        retrievedSourcesData = data.sources_retrieved || [];
-                        
-                        if (retrievedSourcesData.length > 0) {
-                            sourcesHeader.textContent = `المصادر المسترجعة (${retrievedSourcesData.length} نتيجة إجمالية):`;
-                            sourcesHeader.classList.remove('hidden');
-
-                            const groupedSources = new Map();
-                            retrievedSourcesData.forEach(source => {
-                                const authorName = source.author_name || 'غير معروف';
-                                if (!groupedSources.has(authorName)) {
-                                    groupedSources.set(authorName, []);
-                                }
-                                groupedSources.get(authorName).push(source);
-                            });
-
-                            let sourcesHtmlContent = '';
-                            const initialSourcesPerAuthor = 3;
-
-                            groupedSources.forEach((authorSources, authorName) => {
-                                const totalSourcesForAuthor = authorSources.length;
-                                const displaySources = authorSources.slice(0, initialSourcesPerAuthor);
-                                const hasMoreSources = totalSourcesForAuthor > initialSourcesPerAuthor;
-                                const authorIdClean = authorName.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-');
-
-                                sourcesHtmlContent += `
-                                    <div class="author-group" id="author-group-${authorIdClean}">
-                                        <div class="author-group-header">
-                                            المؤلف: ${authorName} (${totalSourcesForAuthor} نتيجة)
-                                        </div>
-                                        <div class="author-sources-container" id="author-sources-container-${authorIdClean}">
-                                `;
-
-                                displaySources.forEach((source, sourceIndex) => {
-                                    const fullText = source.text_content;
-                                    const highlightedFullText = highlightText(fullText, question);
-                                    const highlightedTruncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
-                                    const needsTruncation = fullText.length > 250;
-
-                                    sourcesHtmlContent += `
-                                        <div class="source-item">
-                                            <div class="source-header">${source.book_title}</div>
-                                            <div class="source-meta">
-                                                الجزء: ${source.part_number}, الصفحة: ${source.page_number}
-                                            </div>
-                                            <div id="source-text-${authorIdClean}-${sourceIndex}" class="source-text-truncated">
-                                                ${highlightedTruncatedText}
-                                            </div>
-                                            ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorIdClean}" data-source-index="${sourceIndex}" data-expanded="false">عرض النص كاملاً</span>` : ''}
-                                        </div>
-                                    `;
-                                });
-
-                                if (hasMoreSources) {
-                                    sourcesHtmlContent += `
-                                        <button class="show-all-author-sources-button" data-author-id="${authorIdClean}" data-expanded="false">
-                                            عرض كل النتائج للمؤلف (${totalSourcesForAuthor})
-                                        </button>
-                                    `;
-                                }
-                                sourcesHtmlContent += `
-                                        </div>
-                                    </div>
-                                `;
-                            });
-                            sourcesContainer.innerHTML = sourcesHtmlContent;
-
-                            document.querySelectorAll('.toggle-text-button[data-source-index]').forEach(button => {
-                                button.addEventListener('click', () => {
-                                    const authorId = button.dataset.authorId;
-                                    const sourceIndex = parseInt(button.dataset.sourceIndex);
-                                    const textDiv = document.getElementById(`source-text-${authorId}-${sourceIndex}`);
-                                    const isExpanded = button.dataset.expanded === 'true';
-
-                                    const authorName = Array.from(groupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === authorId);
-                                    const originalSource = groupedSources.get(authorName)[sourceIndex];
-
-                                    if (isExpanded) {
-                                        const highlightedFullText = highlightText(originalSource.text_content, question);
-                                        textDiv.innerHTML = highlightedFullText.substring(0, 250) + '...';
-                                        button.textContent = 'عرض النص كاملاً';
-                                        button.dataset.expanded = 'false';
-                                    } else {
-                                        const highlightedFullText = highlightText(originalSource.text_content, question);
-                                        textDiv.innerHTML = highlightedFullText;
-                                        button.textContent = 'طي النص';
-                                        button.dataset.expanded = 'true';
-                                    }
-                                });
-                            });
-
-                            document.querySelectorAll('.show-all-author-sources-button').forEach(button => {
-                                button.addEventListener('click', () => {
-                                    const authorId = button.dataset.authorId;
-                                    const authorSourcesContainer = document.getElementById(`author-sources-container-${authorId}`);
-                                    const isExpanded = button.dataset.expanded === 'true';
-
-                                    const authorName = Array.from(groupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === authorId);
-                                    const allAuthorSources = groupedSources.get(authorName);
-
-                                    if (isExpanded) {
-                                        let collapsedHtml = '';
-                                        allAuthorSources.slice(0, initialSourcesPerAuthor).forEach((source, sourceIndex) => {
-                                            const fullText = source.text_content;
-                                            const highlightedFullText = highlightText(fullText, question);
-                                            const truncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
-                                            const needsTruncation = fullText.length > 250;
-                                            collapsedHtml += `
-                                                <div class="source-item">
-                                                    <div class="source-header">${source.book_title}</div>
-                                                    <div class="source-meta">
-                                                        الجزء: ${source.part_number}, الصفحة: ${source.page_number}
-                                                    </div>
-                                                    <div id="source-text-${authorId}-${sourceIndex}" class="source-text-truncated">
-                                                        ${truncatedText}
-                                                    </div>
-                                                    ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorId}" data-source-index="${sourceIndex}" data-expanded="false">عرض النص كاملاً</span>` : ''}
-                                                </div>
-                                            `;
-                                        });
-                                        authorSourcesContainer.innerHTML = collapsedHtml;
-                                        button.textContent = `عرض كل النتائج للمؤلف (${totalSourcesForAuthor})`;
-                                        button.dataset.expanded = 'false';
-                                        addIndividualToggleListeners(authorId, groupedSources, question);
-
-                                    } else {
-                                        let expandedHtml = '';
-                                        allAuthorSources.forEach((source, sourceIndex) => {
-                                            const fullText = source.text_content;
-                                            const highlightedFullText = highlightText(fullText, question);
-                                            const truncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
-                                            const needsTruncation = fullText.length > 250;
-                                            expandedHtml += `
-                                                <div class="source-item">
-                                                    <div class="source-header">${source.book_title}</div>
-                                                    <div class="source-meta">
-                                                        الجزء: ${source.part_number}, الصفحة: ${source.page_number}
-                                                    </div>
-                                                    <div id="source-text-${authorId}-${sourceIndex}" class="source-text-truncated">
-                                                        ${highlightedFullText}
-                                                    </div>
-                                                    ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorId}" data-source-index="${sourceIndex}" data-expanded="true">طي النص</span>` : ''}
-                                                </div>
-                                            `;
-                                        });
-                                        authorSourcesContainer.innerHTML = expandedHtml;
-                                        button.textContent = 'طي كل النتائج للمؤلف';
-                                        button.dataset.expanded = 'true';
-                                        addIndividualToggleListeners(authorId, groupedSources, question);
-                                    }
-                                });
-                            });
-
-                            function addIndividualToggleListeners(currentAuthorId, currentGroupedSources, currentQuestion) {
-                                document.querySelectorAll(`.toggle-text-button[data-author-id="${currentAuthorId}"]`).forEach(btn => {
-                                    btn.addEventListener('click', () => {
-                                        const idx = parseInt(btn.dataset.sourceIndex);
-                                        const txtDiv = document.getElementById(`source-text-${currentAuthorId}-${idx}`);
-                                        const exp = btn.dataset.expanded === 'true';
-                                        
-                                        const authName = Array.from(currentGroupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === currentAuthorId);
-                                        const originalSource = currentGroupedSources.get(authName)[idx];
-
-                                        if (exp) {
-                                            const highlightedTruncatedText = highlightText(originalSource.text_content, currentQuestion).substring(0, 250) + '...';
-                                            txtDiv.innerHTML = highlightedTruncatedText;
-                                            btn.textContent = 'عرض النص كاملاً';
-                                            btn.dataset.expanded = 'false';
-                                        } else {
-                                            const highlightedFullText = highlightText(originalSource.text_content, currentQuestion);
-                                            txtDiv.innerHTML = highlightedFullText;
-                                            btn.textContent = 'طي النص';
-                                            btn.dataset.expanded = 'true';
-                                        }
-                                    });
-                                });
-                            }
-
-                        } else {
-                            sourcesHeader.classList.add('hidden');
-                            sourcesContainer.innerHTML = '';
-                            noResultsMessage.classList.remove('hidden');
-                            if (!data.gemini_answer && !data.gpt_answer) {
-                                noResultsMessage.textContent = 'عذراً، لم أجد معلومات ذات صلة في المكتبة.';
-                                noResultsMessage.classList.remove('hidden');
-                            }
-                        }
+                    popularQuestionsList.innerHTML = ''; // مسح رسالة التحميل
+                    if (querySnapshot.empty) {
+                        popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">لا توجد أسئلة سابقة.</p>';
                     } else {
+                        querySnapshot.forEach((doc) => {
+                            const questionData = doc.data();
+                            const listItem = document.createElement('li');
+                            listItem.textContent = questionData.question;
+                            listItem.title = `سؤال طرحه: ${questionData.userId || 'مجهول'}`; // عرض معرف المستخدم عند التحويم
+                            listItem.addEventListener('click', () => {
+                                questionInput.value = questionData.question;
+                                askButton.click(); // محاكاة النقر على زر "اسأل"
+                            });
+                            popularQuestionsList.appendChild(listItem);
+                        });
+                    }
+                } catch (e) {
+                    console.error("Error loading popular questions: ", e);
+                    popularQuestionsList.innerHTML = '<p class="error-message">فشل تحميل الأسئلة الشائعة.</p>';
+                }
+            }
+
+            // التأكد من وجود askButton قبل إضافة مستمع الحدث
+            if (askButton) {
+                askButton.addEventListener('click', async () => {
+                    console.log("Ask button click event listener triggered!"); 
+                    const question = questionInput.value.trim();
+                    const author = authorInput.value.trim();
+                    
+                    if (!question && !author) {
+                        responseArea.classList.remove('hidden'); 
+                        loadingMessage.classList.add('hidden'); 
                         geminiAnswerContent.innerHTML = '';
                         gptAnswerContent.innerHTML = '';
                         sourcesHeader.classList.add('hidden');
                         sourcesContainer.innerHTML = '';
                         noResultsMessage.classList.add('hidden');
-                        responseArea.innerHTML = `<p class="error-message">خطأ: ${data.error || 'حدث خطأ غير معروف.'}</p>`;
+                        responseArea.innerHTML = '<p class="error-message">الرجاء إدخال سؤال أو اسم مؤلف.</p>';
+                        return;
                     }
-                } catch (error) {
-                    console.error('Error fetching data:', error); // رسالة خطأ للـ fetch
+
+                    if (question) {
+                        await saveQuestionToFirestore(question);
+                    }
+
+                    responseArea.classList.remove('hidden'); 
+                    loadingMessage.classList.remove('hidden'); 
                     geminiAnswerContent.innerHTML = '';
                     gptAnswerContent.innerHTML = '';
                     sourcesHeader.classList.add('hidden');
                     sourcesContainer.innerHTML = '';
                     noResultsMessage.classList.add('hidden');
-                    responseArea.innerHTML = `<p class="error-message">فشل الاتصال بالخادم. يرجى المحاولة مرة أخرى لاحقًا.</p>`;
-                } finally {
-                    askButton.disabled = false;
-                    loadPopularQuestions();
-                }
-            });
-        } else {
-            console.error("Error: askButton element not found!"); // رسالة خطأ إذا لم يتم العثور على الزر
-        }
-        console.log("Script finished execution."); // رسالة تتبع جديدة
+                    
+                    askButton.disabled = true;
+
+                    let apiUrl = `https://islamic-qa-api-backend.onrender.com/ask?`;
+                    const params = [];
+
+                    if (question) {
+                        params.push(`q=${encodeURIComponent(question)}`);
+                    }
+                    if (author) {
+                        params.push(`author=${encodeURIComponent(author)}`);
+                    }
+                    apiUrl += params.join('&');
+
+                    try {
+                        const response = await fetch(apiUrl);
+                        const data = await response.json();
+
+                        loadingMessage.classList.add('hidden'); 
+
+                        if (response.ok) {
+                            if (data.gemini_answer) {
+                                geminiAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة Gemini:</h2><p>${data.gemini_answer}</p>`;
+                            } else {
+                                geminiAnswerContent.innerHTML = '';
+                            }
+
+                            if (data.gpt_answer) {
+                                gptAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة GPT:</h2><p>${data.gpt_answer}</p>`;
+                            } else {
+                                gptAnswerContent.innerHTML = '';
+                            }
+
+                            retrievedSourcesData = data.sources_retrieved || [];
+                            
+                            if (retrievedSourcesData.length > 0) {
+                                sourcesHeader.textContent = `المصادر المسترجعة (${retrievedSourcesData.length} نتيجة إجمالية):`;
+                                sourcesHeader.classList.remove('hidden'); 
+
+                                const groupedSources = new Map();
+                                retrievedSourcesData.forEach(source => {
+                                    const authorName = source.author_name || 'غير معروف';
+                                    if (!groupedSources.has(authorName)) {
+                                        groupedSources.set(authorName, []);
+                                    }
+                                    groupedSources.get(authorName).push(source);
+                                });
+
+                                let sourcesHtmlContent = ''; 
+                                const initialSourcesPerAuthor = 3;
+
+                                groupedSources.forEach((authorSources, authorName) => {
+                                    const totalSourcesForAuthor = authorSources.length;
+                                    const displaySources = authorSources.slice(0, initialSourcesPerAuthor);
+                                    const hasMoreSources = totalSourcesForAuthor > initialSourcesPerAuthor;
+                                    const authorIdClean = authorName.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-');
+
+                                    sourcesHtmlContent += `
+                                        <div class="author-group" id="author-group-${authorIdClean}">
+                                            <div class="author-group-header">
+                                                المؤلف: ${authorName} (${totalSourcesForAuthor} نتيجة)
+                                            </div>
+                                            <div class="author-sources-container" id="author-sources-container-${authorIdClean}">
+                                    `;
+
+                                    displaySources.forEach((source, sourceIndex) => {
+                                        const fullText = source.text_content;
+                                        const highlightedFullText = highlightText(fullText, question);
+                                        const highlightedTruncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
+                                        const needsTruncation = fullText.length > 250;
+
+                                        sourcesHtmlContent += `
+                                            <div class="source-item">
+                                                <div class="source-header">${source.book_title}</div>
+                                                <div class="source-meta">
+                                                    الجزء: ${source.part_number}, الصفحة: ${source.page_number}
+                                                </div>
+                                                <div id="source-text-${authorIdClean}-${sourceIndex}" class="source-text-truncated">
+                                                    ${highlightedTruncatedText}
+                                                </div>
+                                                ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorIdClean}" data-source-index="${sourceIndex}" data-expanded="false">عرض النص كاملاً</span>` : ''}
+                                            </div>
+                                        `;
+                                    });
+
+                                    if (hasMoreSources) {
+                                        sourcesHtmlContent += `
+                                            <button class="show-all-author-sources-button" data-author-id="${authorIdClean}" data-expanded="false">
+                                                عرض كل النتائج للمؤلف (${totalSourcesForAuthor})
+                                            </button>
+                                        `;
+                                    }
+                                    sourcesHtmlContent += `
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                sourcesContainer.innerHTML = sourcesHtmlContent; 
+
+                                document.querySelectorAll('.toggle-text-button[data-source-index]').forEach(button => {
+                                    button.addEventListener('click', () => {
+                                        const authorId = button.dataset.authorId;
+                                        const sourceIndex = parseInt(button.dataset.sourceIndex);
+                                        const textDiv = document.getElementById(`source-text-${authorId}-${sourceIndex}`);
+                                        const isExpanded = button.dataset.expanded === 'true';
+
+                                        const authorName = Array.from(groupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === authorId);
+                                        const originalSource = groupedSources.get(authorName)[sourceIndex];
+
+                                        if (isExpanded) {
+                                            const highlightedFullText = highlightText(originalSource.text_content, question);
+                                            textDiv.innerHTML = highlightedFullText.substring(0, 250) + '...';
+                                            button.textContent = 'عرض النص كاملاً';
+                                            button.dataset.expanded = 'false';
+                                        } else {
+                                            const highlightedFullText = highlightText(originalSource.text_content, question);
+                                            textDiv.innerHTML = highlightedFullText;
+                                            button.textContent = 'طي النص';
+                                            button.dataset.expanded = 'true';
+                                        }
+                                    });
+                                });
+
+                                document.querySelectorAll('.show-all-author-sources-button').forEach(button => {
+                                    button.addEventListener('click', () => {
+                                        const authorId = button.dataset.authorId;
+                                        const authorSourcesContainer = document.getElementById(`author-sources-container-${authorId}`);
+                                        const isExpanded = button.dataset.expanded === 'true';
+
+                                        const authorName = Array.from(groupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === authorId);
+                                        const allAuthorSources = groupedSources.get(authorName);
+
+                                        if (isExpanded) {
+                                            let collapsedHtml = '';
+                                            allAuthorSources.slice(0, initialSourcesPerAuthor).forEach((source, sourceIndex) => {
+                                                const fullText = source.text_content;
+                                                const highlightedFullText = highlightText(fullText, question);
+                                                const truncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
+                                                const needsTruncation = fullText.length > 250;
+                                                collapsedHtml += `
+                                                    <div class="source-item">
+                                                        <div class="source-header">${source.book_title}</div>
+                                                        <div class="source-meta">
+                                                            الجزء: ${source.part_number}, الصفحة: ${source.page_number}
+                                                        </div>
+                                                        <div id="source-text-${authorId}-${sourceIndex}" class="source-text-truncated">
+                                                            ${truncatedText}
+                                                        </div>
+                                                        ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorId}" data-source-index="${sourceIndex}" data-expanded="false">عرض النص كاملاً</span>` : ''}
+                                                    </div>
+                                                `;
+                                            });
+                                            authorSourcesContainer.innerHTML = collapsedHtml;
+                                            button.textContent = `عرض كل النتائج للمؤلف (${totalSourcesForAuthor})`;
+                                            button.dataset.expanded = 'false';
+                                            addIndividualToggleListeners(authorId, groupedSources, question);
+
+                                        } else {
+                                            let expandedHtml = '';
+                                            allAuthorSources.forEach((source, sourceIndex) => {
+                                                const fullText = source.text_content;
+                                                const highlightedFullText = highlightText(fullText, question);
+                                                const truncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
+                                                const needsTruncation = fullText.length > 250;
+                                                expandedHtml += `
+                                                    <div class="source-item">
+                                                        <div class="source-header">${source.book_title}</div>
+                                                        <div class="source-meta">
+                                                            الجزء: ${source.part_number}, الصفحة: ${source.page_number}
+                                                        </div>
+                                                        <div id="source-text-${authorId}-${sourceIndex}" class="source-text-truncated">
+                                                            ${highlightedFullText}
+                                                        </div>
+                                                        ${needsTruncation ? `<span class="toggle-text-button" data-author-id="${authorId}" data-source-index="${sourceIndex}" data-expanded="true">طي النص</span>` : ''}
+                                                    </div>
+                                                `;
+                                            });
+                                            authorSourcesContainer.innerHTML = expandedHtml;
+                                            button.textContent = 'طي كل النتائج للمؤلف';
+                                            button.dataset.expanded = 'true';
+                                            addIndividualToggleListeners(authorId, groupedSources, question);
+                                        }
+                                    });
+                                });
+
+                                function addIndividualToggleListeners(currentAuthorId, currentGroupedSources, currentQuestion) {
+                                    document.querySelectorAll(`.toggle-text-button[data-author-id="${currentAuthorId}"]`).forEach(btn => {
+                                        btn.addEventListener('click', () => {
+                                            const idx = parseInt(btn.dataset.sourceIndex);
+                                            const txtDiv = document.getElementById(`source-text-${currentAuthorId}-${idx}`);
+                                            const exp = btn.dataset.expanded === 'true';
+                                            
+                                            const authName = Array.from(currentGroupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === currentAuthorId);
+                                            const originalSource = currentGroupedSources.get(authName)[idx];
+
+                                            if (exp) {
+                                                const highlightedTruncatedText = highlightText(originalSource.text_content, currentQuestion).substring(0, 250) + '...';
+                                                txtDiv.innerHTML = highlightedTruncatedText;
+                                                btn.textContent = 'عرض النص كاملاً';
+                                                btn.dataset.expanded = 'false';
+                                            } else {
+                                                const highlightedFullText = highlightText(originalSource.text_content, currentQuestion);
+                                                txtDiv.innerHTML = highlightedFullText;
+                                                btn.textContent = 'طي النص';
+                                                btn.dataset.expanded = 'true';
+                                            }
+                                        });
+                                    });
+                                }
+
+                            } else {
+                                sourcesHeader.classList.add('hidden');
+                                sourcesContainer.innerHTML = '';
+                                noResultsMessage.classList.remove('hidden');
+                                if (!data.gemini_answer && !data.gpt_answer) {
+                                    noResultsMessage.textContent = 'عذراً، لم أجد معلومات ذات صلة في المكتبة.';
+                                    noResultsMessage.classList.remove('hidden');
+                                }
+                            }
+                        } else {
+                            geminiAnswerContent.innerHTML = '';
+                            gptAnswerContent.innerHTML = '';
+                            sourcesHeader.classList.add('hidden');
+                            sourcesContainer.innerHTML = '';
+                            noResultsMessage.classList.add('hidden');
+                            responseArea.innerHTML = `<p class="error-message">خطأ: ${data.error || 'حدث خطأ غير معروف.'}</p>`;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching data:', error); 
+                        geminiAnswerContent.innerHTML = '';
+                        gptAnswerContent.innerHTML = '';
+                        sourcesHeader.classList.add('hidden');
+                        sourcesContainer.innerHTML = '';
+                        noResultsMessage.classList.add('hidden');
+                        responseArea.innerHTML = `<p class="error-message">فشل الاتصال بالخادم. يرجى المحاولة مرة أخرى لاحقًا.</p>`;
+                    } finally {
+                        askButton.disabled = false;
+                        loadPopularQuestions();
+                    }
+                });
+            } else {
+                console.error("Error: askButton element not found! Script might be running before DOM is ready or ID is incorrect."); 
+            }
+            console.log("Script finished DOMContentLoaded execution."); 
+        }); // نهاية DOMContentLoaded
+        console.log("Script module loaded."); // رسالة تتبع جديدة
     </script>
 </body>
 </html>
