@@ -1,119 +1,92 @@
-# app.py
+# app.py – تحسين البحث لتجاهل الكلمات الشائعة والقصيرة
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import os
-import requests
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError, AuthenticationException
 from anthropic import Anthropic
-import sys
+import os, sys, re
 
 app = Flask(__name__)
 CORS(app)
 
+# إعداد اتصال Elasticsearch
 CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
-
 INDEX_NAME = "islamic_texts"
 
+# مفاتيح نموذج Claude
+CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
+claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
+
+# قائمة كلمات توقف عربية شائعة + كلمات قصيرة ≤2 حروف ستُستثنى من البحث المفصل
+AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
+
+# تهيئة Elasticsearch
 es = None
 try:
     if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
-        es = Elasticsearch(
-            cloud_id=CLOUD_ID,
-            basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD),
-            verify_certs=True,
-            ssl_show_warn=False,
-            request_timeout=60
-        )
+        es = Elasticsearch(cloud_id=CLOUD_ID, basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD))
         if not es.ping():
-            raise ValueError("Connection to Elasticsearch failed!")
-except (ConnectionError, AuthenticationException, Exception) as e:
-    print(f"Elasticsearch connection error: {e}")
+            raise ValueError("Elastic unreachable")
+    else:
+        raise ValueError("Elastic env vars missing")
+except Exception as e:
+    print("Elastic error:", e)
     sys.exit(1)
 
-claude_client = None
-if ANTHROPIC_API_KEY:
-    try:
-        claude_client = Anthropic(api_key=ANTHROPIC_API_KEY)
-    except Exception as e:
-        print(f"Claude client init error: {e}")
-
-@app.route('/ask')
+@app.route("/ask")
 def ask():
     query = request.args.get("q", "").strip()
     mode = request.args.get("mode", "default")
-    from_ = int(request.args.get("from", 0))
-    size = int(request.args.get("size", 7))
+    frm = int(request.args.get("from", 0))
+    size = int(request.args.get("size", 20))
 
     if not query:
         return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
+    # تقسيم الكلمات مع استبعاد الوقف والكلمات القصيرة
+    words = [w for w in re.findall(r"[\u0600-\u06FF]+", query) if len(w) > 2 and w not in AR_STOPWORDS]
+
+    # بناء الاستعلام – المطابقة الكاملة ثم الكلمات الجوهرية فقط
+    should = [{"match_phrase": {"text_content": {"query": query, "boost": 100}}}]
+    should += [{"match": {"text_content": {"query": w, "operator": "and", "boost": 10}}} for w in words]
+
+    es_query = {"bool": {"should": should, "minimum_should_match": 1}}
+
     sources = []
     try:
-        if es and mode != 'ai_only':
-            q = {
-                "bool": {
-                    "should": [
-                        {"match_phrase": {"text_content": {"query": query, "boost": 100}}},
-                        {"match": {"text_content": {"query": query, "operator": "and", "boost": 30}}},
-                        {"multi_match": {
-                            "query": query,
-                            "fields": [
-                                "text_content^3",
-                                "text_content.ngram^2",
-                                "book_title^1.5",
-                                "author_name^1.2"
-                            ],
-                            "fuzziness": "AUTO"
-                        }}
-                    ],
-                    "minimum_should_match": 1
-                }
-            }
-            body = {"query": q, "from": from_, "size": size}
-            res = es.search(index=INDEX_NAME, body=body)
-            for hit in res['hits']['hits']:
-                s = hit['_source']
+        if mode != "ai_only":
+            res = es.search(index=INDEX_NAME, body={"query": es_query, "from": frm, "size": size, "sort": ["_score"]})
+            for hit in res["hits"]["hits"]:
+                doc = hit["_source"]
                 sources.append({
-                    "book_title": s.get("book_title", ""),
-                    "author_name": s.get("author_name", ""),
-                    "part_number": s.get("part_number", ""),
-                    "page_number": s.get("page_number", ""),
-                    "text_content": s.get("text_content", "")
+                    "book_title": doc.get("book_title", ""),
+                    "author_name": doc.get("author_name", ""),
+                    "part_number": doc.get("part_number", ""),
+                    "page_number": doc.get("page_number", ""),
+                    "text_content": doc.get("text_content", "")
                 })
-
-        context = "\n\n".join([
-            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
-            for s in sources
-        ]) if sources else ""
-
-        claude_answer = ""
-        if claude_client:
-            prompt = f"""
-            أجب باختصار وبشكل مباشر عن السؤال التالي:
-            {query}
-            {"استنادًا إلى هذه النصوص:\n" + context if context else ""}
-            """
-            try:
-                msg = claude_client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=1000,
-                    messages=[{"role": "user", "content": prompt.strip()}]
-                )
-                claude_answer = msg.content[0].text.strip()
-            except Exception as e:
-                claude_answer = f"Claude API error: {e}"
-
-        return jsonify({
-            "claude_answer": claude_answer,
-            "sources_retrieved": sources if mode != 'ai_only' else []
-        })
-
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Search failure: {e}"}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    # تحضير إجابة Claude إذا لزم الأمر
+    claude_answer = ""
+    if mode in ("default", "ai_only") and claude_client:
+        context = "\n\n".join([
+            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}" for s in sources
+        ])
+        prompt = f"أجب مباشرة عن السؤال:\n{query}\n" + (f"استنادًا إلى النصوص التالية:\n{context}" if context else "")
+        try:
+            msg = claude_client.messages.create(model="claude-3-5-sonnet-20241022", max_tokens=800, messages=[{"role": "user", "content": prompt}])
+            claude_answer = msg.content[0].text.strip()
+        except Exception as e:
+            claude_answer = f"Claude error: {e}"
+
+    return jsonify({
+        "claude_answer": claude_answer if mode != "full" else "",
+        "sources_retrieved": [] if mode == "ai_only" else sources
+    })
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
