@@ -228,8 +228,17 @@
             <button id="askButton">اسأل</button>
         </div>
         <div id="responseArea" class="response-area hidden">
-            <!-- منطقة عرض الإجابة من الذكاء الاصطناعي -->
-            <div id="aiAnswerContent" class="mb-4 text-lg text-gray-800 leading-relaxed"></div>
+            <!-- رسالة التحميل -->
+            <div id="loadingMessage" class="hidden">
+                <div class="loading-spinner"></div>
+                <p class="text-center text-gray-500 mt-2">جاري البحث عن المصادر وتوليد الإجابات...</p>
+            </div>
+
+            <!-- منطقة عرض الإجابة من الذكاء الاصطناعي (Gemini) -->
+            <div id="geminiAnswerContent" class="mb-4 text-lg text-gray-800 leading-relaxed"></div>
+            
+            <!-- منطقة عرض الإجابة من الذكاء الاصطناعي (GPT) -->
+            <div id="gptAnswerContent" class="mb-4 text-lg text-gray-800 leading-relaxed"></div>
             
             <!-- عنوان المصادر -->
             <h2 id="sourcesHeader" class="text-xl font-semibold text-amber-900 mb-4 hidden"></h2>
@@ -265,10 +274,12 @@
         const responseArea = document.getElementById('responseArea');
         const popularQuestionsList = document.getElementById('popularQuestionsList');
         // عناصر جديدة لعرض الإجابة والمصادر بشكل منفصل
-        const aiAnswerContent = document.getElementById('aiAnswerContent');
+        const geminiAnswerContent = document.getElementById('geminiAnswerContent');
+        const gptAnswerContent = document.getElementById('gptAnswerContent');
         const sourcesHeader = document.getElementById('sourcesHeader');
         const sourcesContainer = document.getElementById('sourcesContainer');
         const noResultsMessage = document.getElementById('noResultsMessage');
+        const loadingMessage = document.getElementById('loadingMessage'); // عنصر جديد للتحميل
 
 
         let db;
@@ -408,14 +419,15 @@
                 await saveQuestionToFirestore(question);
             }
 
-            // إعادة تعيين منطقة الاستجابة
-            responseArea.classList.add('hidden');
-            aiAnswerContent.innerHTML = '';
+            // إخفاء جميع مناطق المحتوى وعرض رسالة التحميل
+            responseArea.classList.remove('hidden'); // تأكد من أن responseArea مرئية
+            loadingMessage.classList.remove('hidden'); // إظهار رسالة التحميل
+            geminiAnswerContent.innerHTML = '';
+            gptAnswerContent.innerHTML = '';
             sourcesHeader.classList.add('hidden');
             sourcesContainer.innerHTML = '';
             noResultsMessage.classList.add('hidden');
-
-            responseArea.innerHTML = '<div class="loading-spinner"></div><p class="text-center text-gray-500 mt-2">جاري البحث عن المصادر...</p>';
+            
             askButton.disabled = true;
 
             let apiUrl = `https://islamic-qa-api-backend.onrender.com/ask?`;
@@ -433,14 +445,22 @@
                 const response = await fetch(apiUrl);
                 const data = await response.json();
 
-                if (response.ok) {
-                    responseArea.classList.remove('hidden'); // إظهار منطقة الاستجابة الرئيسية
+                // إخفاء رسالة التحميل بمجرد استلام الاستجابة
+                loadingMessage.classList.add('hidden'); 
 
-                    // عرض الإجابة من الذكاء الاصطناعي
-                    if (data.answer) {
-                        aiAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">الإجابة:</h2><p>${data.answer}</p>`;
+                if (response.ok) {
+                    // عرض الإجابة من Gemini
+                    if (data.gemini_answer) {
+                        geminiAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة Gemini:</h2><p>${data.gemini_answer}</p>`;
                     } else {
-                        aiAnswerContent.innerHTML = ''; // مسح المحتوى إذا لم تكن هناك إجابة
+                        geminiAnswerContent.innerHTML = '';
+                    }
+
+                    // عرض الإجابة من GPT
+                    if (data.gpt_answer) {
+                        gptAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة GPT:</h2><p>${data.gpt_answer}</p>`;
+                    } else {
+                        gptAnswerContent.innerHTML = '';
                     }
 
                     retrievedSourcesData = data.sources_retrieved || [];
@@ -627,14 +647,15 @@
                         sourcesContainer.innerHTML = '';
                         noResultsMessage.classList.remove('hidden');
                         // إذا لم تكن هناك إجابة من الذكاء الاصطناعي أيضًا، اعرض رسالة "لم أجد معلومات"
-                        if (!data.answer) {
+                        if (!data.gemini_answer && !data.gpt_answer) {
                             noResultsMessage.textContent = 'عذراً، لم أجد معلومات ذات صلة في المكتبة.';
                             noResultsMessage.classList.remove('hidden');
                         }
                     }
                 } else {
                     // في حالة وجود خطأ في الاستجابة
-                    aiAnswerContent.innerHTML = '';
+                    geminiAnswerContent.innerHTML = '';
+                    gptAnswerContent.innerHTML = '';
                     sourcesHeader.classList.add('hidden');
                     sourcesContainer.innerHTML = '';
                     noResultsMessage.classList.add('hidden');
@@ -642,7 +663,8 @@
                 }
             } catch (error) {
                 console.error('Error fetching data:', error);
-                aiAnswerContent.innerHTML = '';
+                geminiAnswerContent.innerHTML = '';
+                gptAnswerContent.innerHTML = '';
                 sourcesHeader.classList.add('hidden');
                 sourcesContainer.innerHTML = '';
                 noResultsMessage.classList.add('hidden');
