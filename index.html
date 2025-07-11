@@ -22,6 +22,17 @@
       <button onclick="runSearch('full')" class="px-4 py-2 bg-green-100 text-green-800 rounded-md font-semibold">البحث الشامل في الكتب</button>
     </div>
 
+    <!-- أنميشن التحميل -->
+    <div id="loadingSpinner" class="text-center hidden">
+      <div class="flex justify-center items-center">
+        <svg class="animate-spin h-6 w-6 text-indigo-600 mr-2" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+        <span class="text-gray-700">جاري البحث في الكتب...</span>
+      </div>
+    </div>
+
     <!-- منطقة عرض النتائج -->
     <div id="resultsArea" class="space-y-4">
       <!-- الذكاء الاصطناعي -->
@@ -42,6 +53,12 @@ let from = 0;
 const size = 20;
 const API_BASE = 'https://islamic-qa-api-backend.onrender.com';
 
+function showLoading(show) {
+  const loader = document.getElementById('loadingSpinner');
+  if (show) loader.classList.remove('hidden');
+  else loader.classList.add('hidden');
+}
+
 function runSearch(mode) {
   const query = document.getElementById('searchInput').value.trim();
   if (!query) return;
@@ -54,6 +71,7 @@ function runSearch(mode) {
   document.getElementById('sourcesList').innerHTML = '';
   document.getElementById('loadMoreContainer').classList.add('hidden');
 
+  showLoading(true);
   fetchResults();
 }
 
@@ -63,27 +81,33 @@ function fetchResults() {
   fetch(url)
     .then(res => res.json())
     .then(data => {
+      showLoading(false);
       if (currentMode !== 'full' && data.claude_answer) {
         const aiDiv = document.getElementById('aiAnswer');
         aiDiv.textContent = data.claude_answer;
         aiDiv.classList.remove('hidden');
       }
 
-      const list = document.getElementById('sourcesList');
-      if (data.sources_retrieved) {
-        data.sources_retrieved.forEach(src => {
-          const item = document.createElement('div');
-          item.className = 'bg-gray-50 border p-3 rounded';
-          item.innerHTML = `<strong>${src.book_title}</strong> - ${src.author_name}<br><span class='text-sm text-gray-600'>${highlight(src.text_content, lastQuery, 200)} <a class='text-blue-600 underline cursor-pointer' onclick='alertFullText(${JSON.stringify(src.text_content)})'>عرض النص كاملًا</a></span>`;
-          list.appendChild(item);
-        });
+      if (currentMode !== 'ai_only') {
+        const list = document.getElementById('sourcesList');
+        if (data.sources_retrieved) {
+          data.sources_retrieved.forEach(src => {
+            const item = document.createElement('div');
+            item.className = 'bg-gray-50 border p-3 rounded';
+            item.innerHTML = `<strong>${src.book_title}</strong> - ${src.author_name}<br><span class='text-sm text-gray-600'>${highlight(src.text_content, lastQuery, 200)} <a class='text-blue-600 underline cursor-pointer' onclick='alertFullText(${JSON.stringify(src.text_content)})'>عرض النص كاملًا</a></span>`;
+            list.appendChild(item);
+          });
+        }
       }
 
       if (currentMode === 'full' && data.sources_retrieved.length === size) {
         document.getElementById('loadMoreContainer').classList.remove('hidden');
       }
     })
-    .catch(err => console.error('Fetch error:', err));
+    .catch(err => {
+      showLoading(false);
+      console.error('Fetch error:', err);
+    });
 }
 
 function loadMore() {
