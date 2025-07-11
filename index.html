@@ -227,29 +227,8 @@
             </div>
             <button id="askButton">اسأل</button>
         </div>
-        <div id="responseArea" class="response-area hidden">
-            <!-- رسالة التحميل -->
-            <div id="loadingMessage" class="hidden">
-                <div class="loading-spinner"></div>
-                <p class="text-center text-gray-500 mt-2">جاري البحث عن المصادر وتوليد الإجابات...</p>
-            </div>
-
-            <!-- منطقة عرض الإجابة من الذكاء الاصطناعي (Gemini) -->
-            <div id="geminiAnswerContent" class="mb-4 text-lg text-gray-800 leading-relaxed"></div>
-            
-            <!-- منطقة عرض الإجابة من الذكاء الاصطناعي (GPT) -->
-            <div id="gptAnswerContent" class="mb-4 text-lg text-gray-800 leading-relaxed"></div>
-            
-            <!-- عنوان المصادر -->
-            <h2 id="sourcesHeader" class="text-xl font-semibold text-amber-900 mb-4 hidden"></h2>
-            
-            <!-- حاوية المصادر -->
-            <div id="sourcesContainer">
-                <!-- سيتم عرض المصادر هنا -->
-            </div>
-            
-            <!-- رسالة عدم وجود نتائج -->
-            <p id="noResultsMessage" class="text-gray-500 text-center hidden">عذراً، لم أجد معلومات ذات صلة في المكتبة.</p>
+        <div id="responseArea" class="response-area">
+            <p class="text-gray-500 text-center">المصادر ذات الصلة ستظهر هنا...</p>
         </div>
 
         <!-- قسم الأسئلة الشائعة -->
@@ -273,14 +252,6 @@
         const askButton = document.getElementById('askButton');
         const responseArea = document.getElementById('responseArea');
         const popularQuestionsList = document.getElementById('popularQuestionsList');
-        // عناصر جديدة لعرض الإجابة والمصادر بشكل منفصل
-        const geminiAnswerContent = document.getElementById('geminiAnswerContent');
-        const gptAnswerContent = document.getElementById('gptAnswerContent');
-        const sourcesHeader = document.getElementById('sourcesHeader');
-        const sourcesContainer = document.getElementById('sourcesContainer');
-        const noResultsMessage = document.getElementById('noResultsMessage');
-        const loadingMessage = document.getElementById('loadingMessage'); // عنصر جديد للتحميل
-
 
         let db;
         let auth;
@@ -419,15 +390,7 @@
                 await saveQuestionToFirestore(question);
             }
 
-            // إخفاء جميع مناطق المحتوى وعرض رسالة التحميل
-            responseArea.classList.remove('hidden'); // تأكد من أن responseArea مرئية
-            loadingMessage.classList.remove('hidden'); // إظهار رسالة التحميل
-            geminiAnswerContent.innerHTML = '';
-            gptAnswerContent.innerHTML = '';
-            sourcesHeader.classList.add('hidden');
-            sourcesContainer.innerHTML = '';
-            noResultsMessage.classList.add('hidden');
-            
+            responseArea.innerHTML = '<div class="loading-spinner"></div><p class="text-center text-gray-500 mt-2">جاري البحث عن المصادر...</p>';
             askButton.disabled = true;
 
             let apiUrl = `https://islamic-qa-api-backend.onrender.com/ask?`;
@@ -445,30 +408,10 @@
                 const response = await fetch(apiUrl);
                 const data = await response.json();
 
-                // إخفاء رسالة التحميل بمجرد استلام الاستجابة
-                loadingMessage.classList.add('hidden'); 
-
                 if (response.ok) {
-                    // عرض الإجابة من Gemini
-                    if (data.gemini_answer) {
-                        geminiAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة Gemini:</h2><p>${data.gemini_answer}</p>`;
-                    } else {
-                        geminiAnswerContent.innerHTML = '';
-                    }
-
-                    // عرض الإجابة من GPT
-                    if (data.gpt_answer) {
-                        gptAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة GPT:</h2><p>${data.gpt_answer}</p>`;
-                    } else {
-                        gptAnswerContent.innerHTML = '';
-                    }
-
                     retrievedSourcesData = data.sources_retrieved || [];
                     
                     if (retrievedSourcesData.length > 0) {
-                        sourcesHeader.textContent = `المصادر المسترجعة (${retrievedSourcesData.length} نتيجة إجمالية):`;
-                        sourcesHeader.classList.remove('hidden'); // إظهار عنوان المصادر
-
                         const groupedSources = new Map();
                         retrievedSourcesData.forEach(source => {
                             const authorName = source.author_name || 'غير معروف';
@@ -478,7 +421,7 @@
                             groupedSources.get(authorName).push(source);
                         });
 
-                        let sourcesHtmlContent = ''; // بناء HTML لمحتوى المصادر
+                        let sourcesHtml = `<h2 class="text-xl font-semibold text-amber-900 mb-4">المصادر المسترجعة (${retrievedSourcesData.length} نتيجة إجمالية):</h2>`;
                         const initialSourcesPerAuthor = 3;
 
                         groupedSources.forEach((authorSources, authorName) => {
@@ -487,7 +430,7 @@
                             const hasMoreSources = totalSourcesForAuthor > initialSourcesPerAuthor;
                             const authorIdClean = authorName.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-');
 
-                            sourcesHtmlContent += `
+                            sourcesHtml += `
                                 <div class="author-group" id="author-group-${authorIdClean}">
                                     <div class="author-group-header">
                                         المؤلف: ${authorName} (${totalSourcesForAuthor} نتيجة)
@@ -501,7 +444,7 @@
                                 const highlightedTruncatedText = highlightedFullText.substring(0, 250) + (highlightedFullText.length > 250 ? '...' : '');
                                 const needsTruncation = fullText.length > 250;
 
-                                sourcesHtmlContent += `
+                                sourcesHtml += `
                                     <div class="source-item">
                                         <div class="source-header">${source.book_title}</div>
                                         <div class="source-meta">
@@ -516,20 +459,19 @@
                             });
 
                             if (hasMoreSources) {
-                                sourcesHtmlContent += `
+                                sourcesHtml += `
                                     <button class="show-all-author-sources-button" data-author-id="${authorIdClean}" data-expanded="false">
                                         عرض كل النتائج للمؤلف (${totalSourcesForAuthor})
                                     </button>
                                 `;
                             }
-                            sourcesHtmlContent += `
+                            sourcesHtml += `
                                     </div>
                                 </div>
                             `;
                         });
-                        sourcesContainer.innerHTML = sourcesHtmlContent; // تعيين المحتوى لحاوية المصادر
+                        responseArea.innerHTML = sourcesHtml;
 
-                        // إعادة ربط مستمعي الأحداث للأزرار بعد تحديث HTML
                         document.querySelectorAll('.toggle-text-button[data-source-index]').forEach(button => {
                             button.addEventListener('click', () => {
                                 const authorId = button.dataset.authorId;
@@ -642,32 +584,13 @@
                         }
 
                     } else {
-                        // إذا لم يتم العثور على مصادر، اعرض رسالة مناسبة (قد تكون الإجابة موجودة)
-                        sourcesHeader.classList.add('hidden');
-                        sourcesContainer.innerHTML = '';
-                        noResultsMessage.classList.remove('hidden');
-                        // إذا لم تكن هناك إجابة من الذكاء الاصطناعي أيضًا، اعرض رسالة "لم أجد معلومات"
-                        if (!data.gemini_answer && !data.gpt_answer) {
-                            noResultsMessage.textContent = 'عذراً، لم أجد معلومات ذات صلة في المكتبة.';
-                            noResultsMessage.classList.remove('hidden');
-                        }
+                        responseArea.innerHTML = `<p class="error-message">${data.answer || 'عذراً، لم أجد معلومات ذات صلة في المكتبة.'}</p>`;
                     }
                 } else {
-                    // في حالة وجود خطأ في الاستجابة
-                    geminiAnswerContent.innerHTML = '';
-                    gptAnswerContent.innerHTML = '';
-                    sourcesHeader.classList.add('hidden');
-                    sourcesContainer.innerHTML = '';
-                    noResultsMessage.classList.add('hidden');
                     responseArea.innerHTML = `<p class="error-message">خطأ: ${data.error || 'حدث خطأ غير معروف.'}</p>`;
                 }
             } catch (error) {
                 console.error('Error fetching data:', error);
-                geminiAnswerContent.innerHTML = '';
-                gptAnswerContent.innerHTML = '';
-                sourcesHeader.classList.add('hidden');
-                sourcesContainer.innerHTML = '';
-                noResultsMessage.classList.add('hidden');
                 responseArea.innerHTML = `<p class="error-message">فشل الاتصال بالخادم. يرجى المحاولة مرة أخرى لاحقًا.</p>`;
             } finally {
                 askButton.disabled = false;
