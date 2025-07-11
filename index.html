@@ -1,13 +1,20 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>سؤال وجواب إسلامي</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { background-color: #f9fafb; font-family: system-ui, sans-serif; }
-    mark { background-color: #fef08a; padding: 0 4px; border-radius: 4px; }
+    body {
+      background-color: #f9fafb;
+      font-family: system-ui, sans-serif;
+    }
+    mark {
+      background-color: #fef08a;
+      padding: 0 4px;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
@@ -75,7 +82,6 @@
 
         const queryWords = q.split(/\s+/).filter(w => w.length > 2);
         const highlight = (text) => {
-          if (!text) return '';
           let result = text;
           queryWords.forEach(word => {
             const re = new RegExp(`(${word})`, 'gi');
@@ -86,16 +92,18 @@
 
         if (Array.isArray(data.sources_retrieved)) {
           data.sources_retrieved.forEach((src, idx) => {
+            const shortText = src.text_content.slice(0, 200).replace(/\n+/g, ' ') + '...';
+            const fullText = highlight(src.text_content.replace(/\n+/g, ' '));
             const div = document.createElement('div');
             div.className = 'p-3 bg-gray-50 border border-gray-200 rounded-md';
-            const contentId = `src-${idx}`;
-            const shortText = src.text_content.slice(0, 150).replace(/\n+/g, ' ') + '...';
             div.innerHTML = `
               <div class="font-bold">${src.book_title}</div>
-              <div class="text-sm text-gray-500 mb-2">${src.author_name}</div>
-              <div id="${contentId}" class="text-gray-700 text-sm">
-                ${highlight(shortText)}
-                <button class="text-indigo-600 underline mt-1 block text-sm" onclick="this.previousSibling.innerHTML='${highlight(src.text_content.replace(/\n+/g, ' '))}'; this.remove()">عرض النص الكامل</button>
+              <div class="text-sm text-gray-500 mb-2">${src.author_name} - جزء ${src.part_number}، صفحة ${src.page_number}</div>
+              <div class="text-gray-700 text-sm">
+                <span id="short-${idx}">${highlight(shortText)}</span>
+                <span id="full-${idx}" class="hidden">${fullText}</span>
+                <button onclick="document.getElementById('short-${idx}').classList.add('hidden'); document.getElementById('full-${idx}').classList.remove('hidden'); this.remove();"
+                        class="text-indigo-600 underline mt-1 block text-sm">عرض النص الكامل</button>
               </div>
             `;
             sources.appendChild(div);
