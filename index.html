@@ -63,7 +63,9 @@
       claudeAnswer.textContent = '';
       sources.innerHTML = '';
 
-      const url = `/ask?q=${encodeURIComponent(q)}&author=${encodeURIComponent(author)}`;
+      const apiBase = 'https://islamic-qa-api-backend.onrender.com';
+      const url = `${apiBase}/ask?q=${encodeURIComponent(q)}&author=${encodeURIComponent(author)}`;
+
       try {
         const res = await fetch(url);
         const data = await res.json();
