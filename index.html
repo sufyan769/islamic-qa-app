@@ -292,24 +292,18 @@
             let isAuthReady = false;
 
             // تهيئة Firebase باستخدام الكائنات العالمية
-            let firebaseConfig = {};
-            try {
-                firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-                // تحقق من وجود projectId
-                if (!firebaseConfig.projectId) {
-                    console.error("Firebase Error: 'projectId' not found in firebaseConfig. Please ensure __firebase_config is correctly set in your environment variables on Render.");
-                    // يمكنك عرض رسالة خطأ للمستخدم هنا أيضًا إذا أردت
-                    responseArea.classList.remove('hidden');
-                    responseArea.innerHTML = '<p class="error-message">خطأ في تهيئة التطبيق: لم يتم توفير معرف مشروع Firebase. يرجى الاتصال بالمسؤول.</p>';
-                    return; // إيقاف تنفيذ السكربت إذا لم يتم تهيئة Firebase بشكل صحيح
-                }
-            } catch (e) {
-                console.error("Error parsing __firebase_config:", e);
-                responseArea.classList.remove('hidden');
-                responseArea.innerHTML = '<p class="error-message">خطأ في تهيئة التطبيق: فشل تحليل إعدادات Firebase. يرجى الاتصال بالمسؤول.</p>';
-                return; // إيقاف تنفيذ السكربت
-            }
+            // تم تضمين firebaseConfig مباشرة هنا لتجاوز مشاكل متغيرات البيئة
+            const firebaseConfig = {
+              apiKey: "AIzaSyC-gTQykWmRjGVYMp09VjGwSuVSB7Ai4UE",
+              authDomain: "islamic-qa-web-app.firebaseapp.com",
+              projectId: "islamic-qa-web-app",
+              storageBucket: "islamic-qa-web-app.appspot.com",
+              messagingSenderId: "491578843645",
+              appId: "1:491578843645:web:9495241fce629cbe4e3994",
+              measurementId: "G-GMEN1N432F"
+            };
 
+            // لا حاجة لـ try-catch حول JSON.parse بعد الآن لأننا نستخدم الكائن مباشرة
             const app = firebase.initializeApp(firebaseConfig); 
             db = firebase.firestore(); 
             auth = firebase.auth();   
@@ -705,45 +699,3 @@
     </script>
 </body>
 </html>
-```
-
-**التغييرات الرئيسية في Canvas `واجهة المستخدم الأمامية لنظام الأسئلة والأجوبة الإسلامي`:**
-
-1.  **تحقق من `projectId` في `firebaseConfig`:**
-    * تمت إضافة كتلة `try-catch` حول تحليل `__firebase_config` للتأكد من أن عملية التحليل لا تفشل.
-    * بعد تحليل `firebaseConfig`، يتم التحقق مما إذا كانت خاصية `projectId` موجودة. إذا لم تكن موجودة، فسيتم تسجيل خطأ واضح في Console المتصفح، وعرض رسالة خطأ للمستخدم في الواجهة، وإيقاف تنفيذ السكربت لمنع المزيد من الأخطاء.
-
-**الخطوات التالية التي يجب عليك اتباعها:**
-
-1.  **انسخ الكود بالكامل** من Canvas `واجهة المستخدم الأمامية لنظام الأسئلة والأجوبة الإسلامي` أعلاه.
-2.  **الصقه في ملف `index.html`** على جهازك المحلي، وتأكد من استبدال المحتوى القديم بالكامل.
-3.  **قم بتحميل ملف `index.html` المعدل إلى مستودع GitHub الخاص بك.**
-    * Render سيكتشف التغييرات ويعيد نشر الواجهة الأمامية (`islamic-qa-app`) تلقائيًا.
-
-4.  **الأهم: تأكد من تكوين `__firebase_config` بشكل صحيح في Render:**
-    * اذهب إلى لوحة تحكم Render: [https://dashboard.render.com/](https://dashboard.render.com/)
-    * انتقل إلى خدمة الواجهة الأمامية الخاصة بك (`islamic-qa-app`).
-    * في القائمة الجانبية، ابحث عن **"Environment"** أو **"Environment Variables"**.
-    * تأكد من أن متغير البيئة `__firebase_config` يحتوي على **سلسلة JSON صالحة** لتكوين مشروع Firebase الخاص بك. يجب أن تبدو هكذا (مع استبدال القيم بقيم مشروعك الفعلية):
-        ```json
-        {
-          "apiKey": "YOUR_API_KEY",
-          "authDomain": "YOUR_PROJECT_ID.firebaseapp.com",
-          "projectId": "YOUR_PROJECT_ID",
-          "storageBucket": "YOUR_PROJECT_ID.appspot.com",
-          "messagingSenderId": "YOUR_MESSAGING_SENDER_ID",
-          "appId": "YOUR_APP_ID"
-        }
-        ```
-    * **أين تجد هذه القيم؟** يمكنك العثور عليها في لوحة تحكم Firebase الخاصة بمشروعك، ضمن "Project settings" (إعدادات المشروع) -> "General" (عام) -> "Your apps" (تطبيقاتك).
-    * **تأكد من أن `projectId` موجود وصحيح.**
-
-5.  **انتظر بضع دقائق** حتى تكتمل عملية النشر.
-6.  **بعد اكتمال النشر، افتح الـ URL الخاص بالواجهة الأمامية في متصفحك:** `https://islamic-qa-app.onrender.com`
-
-**الخطوة الحاسمة الآن:**
-
-7.  **افتح Console المتصفح *فورًا* بعد فتح الصفحة.**
-8.  **راقب جميع الرسائل التي تظهر عند تحميل الصفحة.**
-
-إذا كان `__firebase_config` مضبوطًا بشكل صحيح، فيجب أن تختفي أخطاء Firebase، وأن يعمل التطبيق بشكل صحيح. إذا استمرت الأخطاء، فالرجاء تزويدي بالرسائل الجديدة في Conso
