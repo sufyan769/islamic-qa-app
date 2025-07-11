@@ -4,3 +4,4 @@ openai
 Flask-Cors
 gunicorn
 ijson
+requests
