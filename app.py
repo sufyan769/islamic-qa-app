@@ -90,6 +90,16 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
                     }
                 }
             })
+            # إضافة بحث مرن (fuzzy) في حقل text_content.ngram
+            query_conditions.append({
+                "match": {
+                    "text_content.ngram": { # البحث في الحقل الفرعي N-gram
+                        "query": query,
+                        "fuzziness": "AUTO", # السماح ببعض الأخطاء الإملائية
+                        "boost": 10 # تعزيز جيد للبحث المرن
+                    }
+                }
+            })
             query_conditions.append({
                 # البحث الأوسع في عناوين الكتب وأسماء المؤلفين
                 "multi_match": {
@@ -116,6 +126,16 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
                         "query": author_query,
                         "operator": "and", # يجب أن تكون جميع الكلمات موجودة في اسم المؤلف
                         "boost": 80 # تعزيز عالٍ، لكن أقل قليلاً من المطابقة الدقيقة للعبارة
+                    }
+                }
+            })
+            # إضافة بحث مرن (fuzzy) في حقل author_name.ngram
+            author_conditions.append({
+                "match": {
+                    "author_name.ngram": { # البحث في الحقل الفرعي N-gram
+                        "query": author_query,
+                        "fuzziness": "AUTO", # السماح ببعض الأخطاء الإملائية
+                        "boost": 90 # تعزيز عالٍ للبحث المرن عن المؤلف
                     }
                 }
             })
