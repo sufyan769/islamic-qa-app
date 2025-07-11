@@ -1,123 +1,89 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>سؤال وجواب إسلامي</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>البحث الإسلامي</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body {
-      background-color: #f9fafb;
-      font-family: system-ui, sans-serif;
-    }
-    mark {
-      background-color: #fef08a;
-      padding: 0 4px;
-      border-radius: 4px;
-    }
+    mark { background-color: yellow; font-weight: bold; }
   </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
-  <div class="w-full max-w-3xl bg-white rounded-xl shadow-lg p-6 space-y-6">
-    <h1 class="text-3xl font-bold text-center text-indigo-700">سؤال وجواب إسلامي</h1>
+<body dir="rtl" class="bg-gray-100 text-gray-800">
+  <div class="max-w-3xl mx-auto py-10 px-4">
+    <h1 class="text-2xl font-bold mb-4">البحث في كتب الإسلام</h1>
 
-    <form id="askForm" class="flex flex-col md:flex-row gap-4">
-      <input id="questionInput" type="text" placeholder="اكتب سؤالك هنا..."
-             class="flex-1 p-3 border border-gray-300 rounded-md focus:ring focus:ring-indigo-200" />
-      <input id="authorInput" type="text" placeholder="اسم المؤلف (اختياري)..."
-             class="flex-1 p-3 border border-gray-300 rounded-md focus:ring focus:ring-indigo-200" />
-      <button type="submit" id="askButton"
-              class="px-6 py-3 bg-indigo-700 text-white rounded-md hover:bg-indigo-800">اسأل</button>
-    </form>
+    <input id="query" type="text" placeholder="اكتب سؤالك هنا..." class="w-full border p-3 rounded text-right mb-2" onkeydown="if(event.key==='Enter') runSearch()">
+    <button onclick="runSearch()" class="bg-blue-600 text-white px-4 py-2 rounded mb-4">اسأل</button>
 
-    <div id="loading" class="hidden text-center text-gray-500">جاري المعالجة...</div>
-
-    <div id="responseArea" class="hidden space-y-6">
-      <div>
-        <h2 class="text-xl font-semibold text-indigo-700">إجابة Gemini</h2>
-        <p id="geminiAnswer" class="text-gray-700"></p>
-      </div>
-      <div>
-        <h2 class="text-xl font-semibold text-indigo-700">إجابة Claude</h2>
-        <p id="claudeAnswer" class="text-gray-700"></p>
-      </div>
-      <div>
-        <h2 class="text-xl font-semibold text-indigo-700">المصادر</h2>
-        <div id="sources" class="space-y-4"></div>
-      </div>
+    <div id="resultCount" class="mb-4 font-semibold"></div>
+    <div id="results"></div>
+    <div class="text-center mt-6">
+      <button id="loadMoreBtn" onclick="loadMore()" class="hidden bg-gray-700 text-white px-4 py-2 rounded">تحميل المزيد</button>
     </div>
   </div>
 
   <script>
-    const form = document.getElementById('askForm');
-    const questionInput = document.getElementById('questionInput');
-    const authorInput = document.getElementById('authorInput');
-    const loading = document.getElementById('loading');
-    const responseArea = document.getElementById('responseArea');
-    const geminiAnswer = document.getElementById('geminiAnswer');
-    const claudeAnswer = document.getElementById('claudeAnswer');
-    const sources = document.getElementById('sources');
+    let fromIndex = 0;
+    let lastQuery = "";
+    const pageSize = 20;
 
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      const q = questionInput.value.trim();
-      const author = authorInput.value.trim();
-      if (!q && !author) return alert('الرجاء إدخال سؤال أو مؤلف.');
+    function highlight(text, terms) {
+      terms.forEach(t => {
+        let r = new RegExp("(" + t.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&") + ")", "gi");
+        text = text.replace(r, '<mark>$1</mark>');
+      });
+      return text;
+    }
 
-      loading.classList.remove('hidden');
-      responseArea.classList.add('hidden');
-      geminiAnswer.textContent = '';
-      claudeAnswer.textContent = '';
-      sources.innerHTML = '';
+    function runSearch() {
+      fromIndex = 0;
+      const q = document.getElementById("query").value.trim();
+      lastQuery = q;
+      if (!q) return;
+      document.getElementById("results").innerHTML = "...جاري البحث";
+      fetchResults(q, 0, true);
+    }
 
-      const apiBase = 'https://islamic-qa-api-backend.onrender.com';
-      const url = `${apiBase}/ask?q=${encodeURIComponent(q)}&author=${encodeURIComponent(author)}`;
+    function loadMore() {
+      fetchResults(lastQuery, fromIndex, false);
+    }
 
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
+    function fetchResults(q, from, clear) {
+      fetch(`/ask?q=${encodeURIComponent(q)}&from=${from}&size=${pageSize}`)
+        .then(res => res.json())
+        .then(data => {
+          if (clear) document.getElementById("results").innerHTML = "";
+          if (data.total_results) document.getElementById("resultCount").innerText = `عدد النتائج: ${data.total_results}`;
 
-        geminiAnswer.textContent = data.gemini_answer || '—';
-        claudeAnswer.textContent = data.claude_answer || '—';
+          if (data.sources_retrieved && data.sources_retrieved.length > 0) {
+            data.sources_retrieved.forEach(src => {
+              const box = document.createElement("div");
+              box.className = "bg-white rounded shadow p-4 mb-4";
+              const textShort = src.text_content.split(" ").slice(0, 30).join(" ") + "...";
+              const fullText = highlight(src.text_content, q.split(" "));
+              box.innerHTML = `
+                <div class="mb-2 font-bold">${src.book_title} - ${src.author_name}</div>
+                <div id="short-${fromIndex}" class="text-sm">
+                  ${highlight(textShort, q.split(" "))} 
+                  <button onclick="toggleFull(this, '${fullText.replace(/'/g, "&#39;")}', '${fromIndex}')" class="text-blue-600 underline">عرض النص الكامل</button>
+                </div>
+              `;
+              document.getElementById("results").appendChild(box);
+              fromIndex++;
+            });
+            document.getElementById("loadMoreBtn").classList.remove("hidden");
+          } else {
+            if (clear) document.getElementById("results").innerHTML = "لا توجد نتائج.";
+            document.getElementById("loadMoreBtn").classList.add("hidden");
+          }
+        });
+    }
 
-        const queryWords = q.split(/\s+/).filter(w => w.length > 2);
-        const highlight = (text) => {
-          let result = text;
-          queryWords.forEach(word => {
-            const re = new RegExp(`(${word})`, 'gi');
-            result = result.replace(re, '<mark>$1</mark>');
-          });
-          return result;
-        };
-
-        if (Array.isArray(data.sources_retrieved)) {
-          data.sources_retrieved.forEach((src, idx) => {
-            const shortText = src.text_content.slice(0, 200).replace(/\n+/g, ' ') + '...';
-            const fullText = highlight(src.text_content.replace(/\n+/g, ' '));
-            const div = document.createElement('div');
-            div.className = 'p-3 bg-gray-50 border border-gray-200 rounded-md';
-            div.innerHTML = `
-              <div class="font-bold">${src.book_title}</div>
-              <div class="text-sm text-gray-500 mb-2">${src.author_name} - جزء ${src.part_number}، صفحة ${src.page_number}</div>
-              <div class="text-gray-700 text-sm">
-                <span id="short-${idx}">${highlight(shortText)}</span>
-                <span id="full-${idx}" class="hidden">${fullText}</span>
-                <button onclick="document.getElementById('short-${idx}').classList.add('hidden'); document.getElementById('full-${idx}').classList.remove('hidden'); this.remove();"
-                        class="text-indigo-600 underline mt-1 block text-sm">عرض النص الكامل</button>
-              </div>
-            `;
-            sources.appendChild(div);
-          });
-        }
-
-        responseArea.classList.remove('hidden');
-      } catch (e) {
-        alert('حدث خطأ أثناء الاتصال بالخادم.');
-        console.error(e);
-      } finally {
-        loading.classList.add('hidden');
-      }
-    };
+    function toggleFull(btn, fullText, id) {
+      const container = document.getElementById("short-" + id);
+      container.innerHTML = fullText;
+    }
   </script>
 </body>
 </html>
