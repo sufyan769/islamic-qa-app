@@ -1,28 +1,27 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>سؤال وجواب إسلامي</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body {
-      background-color: #f9fafb;
-      font-family: system-ui, sans-serif;
-    }
+    body { background-color: #f9fafb; font-family: system-ui, sans-serif; }
+    mark { background-color: #fef08a; padding: 0 4px; border-radius: 4px; }
   </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
   <div class="w-full max-w-3xl bg-white rounded-xl shadow-lg p-6 space-y-6">
     <h1 class="text-3xl font-bold text-center text-indigo-700">سؤال وجواب إسلامي</h1>
 
-    <div class="flex flex-col md:flex-row gap-4">
+    <form id="askForm" class="flex flex-col md:flex-row gap-4">
       <input id="questionInput" type="text" placeholder="اكتب سؤالك هنا..."
-             class="flex-1 p-3 border border-gray-300 rounded-md focus:ring focus:ring-indigo-200">
+             class="flex-1 p-3 border border-gray-300 rounded-md focus:ring focus:ring-indigo-200" />
       <input id="authorInput" type="text" placeholder="اسم المؤلف (اختياري)..."
-             class="flex-1 p-3 border border-gray-300 rounded-md focus:ring focus:ring-indigo-200">
-      <button id="askButton" class="px-6 py-3 bg-indigo-700 text-white rounded-md hover:bg-indigo-800">اسأل</button>
-    </div>
+             class="flex-1 p-3 border border-gray-300 rounded-md focus:ring focus:ring-indigo-200" />
+      <button type="submit" id="askButton"
+              class="px-6 py-3 bg-indigo-700 text-white rounded-md hover:bg-indigo-800">اسأل</button>
+    </form>
 
     <div id="loading" class="hidden text-center text-gray-500">جاري المعالجة...</div>
 
@@ -43,16 +42,17 @@
   </div>
 
   <script>
+    const form = document.getElementById('askForm');
     const questionInput = document.getElementById('questionInput');
     const authorInput = document.getElementById('authorInput');
-    const askButton = document.getElementById('askButton');
     const loading = document.getElementById('loading');
     const responseArea = document.getElementById('responseArea');
     const geminiAnswer = document.getElementById('geminiAnswer');
     const claudeAnswer = document.getElementById('claudeAnswer');
     const sources = document.getElementById('sources');
 
-    askButton.onclick = async () => {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
       const q = questionInput.value.trim();
       const author = authorInput.value.trim();
       if (!q && !author) return alert('الرجاء إدخال سؤال أو مؤلف.');
@@ -72,16 +72,36 @@
 
         geminiAnswer.textContent = data.gemini_answer || '—';
         claudeAnswer.textContent = data.claude_answer || '—';
+
+        const queryWords = q.split(/\s+/).filter(w => w.length > 2);
+        const highlight = (text) => {
+          if (!text) return '';
+          let result = text;
+          queryWords.forEach(word => {
+            const re = new RegExp(`(${word})`, 'gi');
+            result = result.replace(re, '<mark>$1</mark>');
+          });
+          return result;
+        };
+
         if (Array.isArray(data.sources_retrieved)) {
-          data.sources_retrieved.forEach(src => {
+          data.sources_retrieved.forEach((src, idx) => {
             const div = document.createElement('div');
             div.className = 'p-3 bg-gray-50 border border-gray-200 rounded-md';
-            div.innerHTML = `<div class="font-bold">${src.book_title}</div>
-                             <div class="text-sm text-gray-500">${src.author_name} - جزء ${src.part_number}، صفحة ${src.page_number}</div>
-                             <div class="mt-2 text-gray-700 whitespace-pre-wrap">${src.text_content}</div>`;
+            const contentId = `src-${idx}`;
+            const shortText = src.text_content.slice(0, 150).replace(/\n+/g, ' ') + '...';
+            div.innerHTML = `
+              <div class="font-bold">${src.book_title}</div>
+              <div class="text-sm text-gray-500 mb-2">${src.author_name}</div>
+              <div id="${contentId}" class="text-gray-700 text-sm">
+                ${highlight(shortText)}
+                <button class="text-indigo-600 underline mt-1 block text-sm" onclick="this.previousSibling.innerHTML='${highlight(src.text_content.replace(/\n+/g, ' '))}'; this.remove()">عرض النص الكامل</button>
+              </div>
+            `;
             sources.appendChild(div);
           });
         }
+
         responseArea.classList.remove('hidden');
       } catch (e) {
         alert('حدث خطأ أثناء الاتصال بالخادم.');
@@ -89,7 +109,7 @@
       } finally {
         loading.classList.add('hidden');
       }
-    }
+    };
   </script>
 </body>
 </html>
