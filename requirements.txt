@@ -2,3 +2,4 @@ flask
 elasticsearch
 requests
 openai
+gunicorn
