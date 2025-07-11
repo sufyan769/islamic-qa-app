@@ -1,19 +1,13 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 from elasticsearch import Elasticsearch
 import os
-import re
 
 app = Flask(__name__)
-CORS(app)
+# الاتصال بـ Elasticsearch عبر Render (إن وُجد) أو محليًا
+ELASTIC_URL = os.environ.get("ELASTIC_URL", "http://localhost:9200")
+es = Elasticsearch(ELASTIC_URL)
 
-es = Elasticsearch("http://localhost:9200")
 INDEX_NAME = "books_index"
-
-# دالة لحساب عدد الكلمات المطابقة
-def count_matches(text, query_words):
-    text_words = set(re.findall(r'\w+', text))
-    return sum(1 for word in query_words if word in text_words)
 
 @app.route("/ask")
 def ask():
@@ -26,60 +20,52 @@ def ask():
     if not query_text:
         return jsonify({"error": "يرجى إدخال سؤال للبحث."}), 400
 
-    query_words = list(set(re.findall(r'\w+', query_text)))
+    # تقسيم الجملة إلى كلمات للبحث عنها كلها
+    words = query_text.split()
 
-    must_clauses = [
-        {"match": {"text": word}} for word in query_words
-    ]
-
+    # ترتيب النتائج بناءً على عدد الكلمات المتطابقة يدويًا
     should_clauses = [
-        {"match_phrase": {"text": {"query": query_text, "boost": 5}}}
+        {"match_phrase": {"text": query_text}},  # الجملة كاملة
+        *[{"match": {"text": word}} for word in words]
     ]
 
-    if author:
-        must_clauses.append({"match": {"author_name": author}})
-
-    es_query = {
+    query = {
         "bool": {
-            "must": must_clauses,
-            "should": should_clauses
+            "should": should_clauses,
+            "minimum_should_match": 1
         }
     }
 
-    res = es.search(
-        index=INDEX_NAME,
-        body={
-            "query": es_query,
-            "from": 0,
-            "size": 100
-        }
-    )
+    if author:
+        query["bool"]["filter"] = {"match": {"author_name": author}}
+
+    try:
+        res = es.search(
+            index=INDEX_NAME,
+            body={
+                "query": query,
+                "from": from_index,
+                "size": size,
+                "sort": ["_score"]
+            }
+        )
+    except Exception as e:
+        return jsonify({"error": f"فشل الاتصال بـ Elasticsearch: {str(e)}"}), 500
 
     hits = res.get("hits", {}).get("hits", [])
-    results = []
-
-    for hit in hits:
-        source = hit["_source"]
-        text = source.get("text", "")
-        score = count_matches(text, query_words)
-        results.append((score, source))
-
-    results.sort(key=lambda x: x[0], reverse=True)
-    selected = results[from_index:from_index + size]
-
     sources = [
         {
-            "text_content": r[1].get("text", ""),
-            "book_title": r[1].get("book_title", ""),
-            "author_name": r[1].get("author_name", ""),
-            "part_number": r[1].get("part_number", ""),
-            "page_number": r[1].get("page_number", "")
+            "text_content": hit["_source"].get("text", ""),
+            "book_title": hit["_source"].get("book_title", ""),
+            "author_name": hit["_source"].get("author_name", ""),
+            "part_number": hit["_source"].get("part_number", ""),
+            "page_number": hit["_source"].get("page_number", "")
         }
-        for r in selected
+        for hit in hits
     ]
 
     response_data = {
-        "total_results": len(results),
+        "total_results": res["hits"]["total"]["value"],
         "sources_retrieved": sources
     }
 
