@@ -1,44 +1,50 @@
-# استيراد المكتبات الضرورية
+# -*- coding: utf-8 -*-
 from flask import Flask, request, jsonify
+from flask_cors import CORS
+import os
+import requests
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError, AuthenticationException
-import os
 import sys
-import requests # تم إضافة هذا لاستدعاء Gemini API
 # تم حذف استيراد OpenAI (GPT)
+from anthropic import Anthropic # استيراد مكتبة Anthropic لـ Claude
 import json # تم إضافة هذا لمعالجة استجابات JSON من Gemini
 
-from flask_cors import CORS
-from anthropic import Anthropic # استيراد مكتبة Anthropic لـ Claude
-
-# تهيئة تطبيق Flask
 app = Flask(__name__)
-CORS(app)
+CORS(app) # تمكين CORS لجميع المسارات
 
-# 1. إعدادات Elasticsearch (للاتصال بـ Elastic Cloud)
-# يتم جلب بيانات الاعتماد من متغيرات البيئة في Render
+# متغيرات البيئة لـ Elasticsearch
 CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
 
-# قم بتهيئة عميل Elasticsearch باستخدام CLOUD_ID
-print(f"DEBUG: Attempting to connect to Elastic Cloud with CLOUD_ID: {CLOUD_ID}")
-print(f"DEBUG: Username: {ELASTIC_USERNAME}, Password length: {len(ELASTIC_PASSWORD) if ELASTIC_PASSWORD else 0}")
+# متغيرات البيئة لمفاتيح API الخاصة بنماذج الذكاء الاصطناعي
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") # مفتاح API لـ Gemini
+# تم حذف متغير البيئة لمفتاح OpenAI API (GPT)
 
-es = Elasticsearch(
-    cloud_id=CLOUD_ID,
-    basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD),
-    verify_certs=False, # تم تعيين هذا إلى False لتجنب مشاكل الشهادات (غير آمن للإنتاج)
-    ssl_show_warn=True # تمكين تحذيرات SSL لمزيد من التفاصيل
-)
+# مفتاح API الخاص بـ Claude (يجب أن يُقرأ من متغيرات البيئة لضمان الأمان)
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
-# تحقق من الاتصال بـ Elasticsearch عند بدء تشغيل الـ API
+
+# تهيئة عميل Elasticsearch
+es = None
 try:
-    info_response = es.info()
-    print("تم الاتصال بـ Elasticsearch بنجاح عند بدء تشغيل الـ API.")
-    print(f"DEBUG: Elasticsearch Info: {info_response.body['version']['number']}")
+    if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
+        es = Elasticsearch(
+            cloud_id=CLOUD_ID,
+            basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD),
+            verify_certs=True,
+            ssl_show_warn=False,
+            request_timeout=60 
+        )
+        # التحقق من الاتصال
+        if not es.ping():
+            raise ValueError("Connection to Elasticsearch failed!")
+        print("Successfully connected to Elasticsearch!")
+    else:
+        print("Elasticsearch environment variables not fully set. Skipping connection.")
 except ConnectionError as ce:
-    print(f"خطأ في الاتصال بـ Elasticsearch عند بدء تشغيل الـ API (ConnectionError): {ce}")
+    print(f"خطأ في الاتصال بـ Elasticsearch (ConnectionError): {ce}")
     print("يرجى التحقق من اتصالك بالإنترنت، إعدادات جدار الحماية، وفلاتر IP في Elastic Cloud.")
     sys.exit(1)
 except AuthenticationException as ae:
@@ -46,18 +52,8 @@ except AuthenticationException as ae:
     print("يرجى التحقق من اسم المستخدم وكلمة المرور الخاصة بـ Elastic Cloud. تأكد من أنها مطابقة تمامًا.")
     sys.exit(1)
 except Exception as e:
-    print(f"خطأ في الاتصال بـ Elasticsearch عند بدء تشغيل الـ API: {e}")
+    print(f"حدث خطأ غير متوقع أثناء الاتصال بـ Elasticsearch: {e}")
     sys.exit(1)
-
-# اسم الفهرس الذي قمنا بإنشائه
-INDEX_NAME = "islamic_texts"
-
-# 2. إعدادات AI API (Gemini و Claude)
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") # مفتاح API لـ Gemini
-# تم حذف متغير البيئة لمفتاح OpenAI API (GPT)
-
-# مفتاح API الخاص بـ Claude (يجب أن يُقرأ من متغيرات البيئة لضمان الأمان)
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 
 # تهيئة عميل Claude
@@ -71,142 +67,146 @@ if ANTHROPIC_API_KEY:
 else:
     print("ANTHROPIC_API_KEY not set. Claude API will not be available.")
 
-# 3. نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج AI
+# اسم الفهرس الذي قمنا بإنشائه
+INDEX_NAME = "islamic_texts"
+
+# نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج AI
 @app.route('/ask', methods=['GET'])
-def ask_ai(): # تم تغيير اسم الدالة ليعكس دعم كلا النموذجين
+def ask_ai():
     query = request.args.get('q', '')
-    author_query = request.args.get('author', '') # جلب اسم المؤلف من الطلب
+    author_query = request.args.get('author', '')
 
     if not query and not author_query:
         return jsonify({"error": "يرجى تقديم سؤال أو اسم مؤلف."}), 400
 
+    sources_retrieved = []
     try:
-        # بناء استعلام Elasticsearch لتحسين دقة البحث
-        query_clauses = [] # شروط البحث الخاصة بالسؤال
-        author_clauses = [] # شروط البحث الخاصة بالمؤلف
+        if es:
+            # بناء استعلام Elasticsearch لتحسين دقة البحث
+            query_clauses = [] # شروط البحث الخاصة بالسؤال
+            author_clauses = [] # شروط البحث الخاصة بالمؤلف
 
-        if query:
-            # البحث عن الكلمات الرئيسية في حقول متعددة مع تعزيزات مختلفة
-            query_clauses.append({
-                "multi_match": {
-                    "query": query,
-                    "fields": [
-                        "text_content^3",         # تعزيز عالي لمحتوى النص
-                        "text_content.ngram^2",   # تعزيز للبحث الجزئي (N-gram)
-                        "book_title^1.5",         # تعزيز لعنوان الكتاب
-                        "author_name^1.2"         # تعزيز لاسم المؤلف
-                    ],
-                    "type": "best_fields",  # أخذ النقاط من أفضل حقل مطابق
-                    "fuzziness": "AUTO",    # السماح ببعض الأخطاء الإملائية
-                    "operator": "or"        # مطابقة أي من المصطلحات
-                }
-            })
-            # مطابقة العبارة الدقيقة مع تعزيز عالي جداً
-            query_clauses.append({
-                "match_phrase": {
-                    "text_content": {
+            if query:
+                # البحث عن الكلمات الرئيسية في حقول متعددة مع تعزيزات مختلفة
+                query_clauses.append({
+                    "multi_match": {
                         "query": query,
-                        "boost": 100,           # تعزيز عالي جداً للمطابقة الدقيقة للعبارة
-                        "slop": 2               # السماح بوجود الكلمات متباعدة بمقدار 2 موضع
+                        "fields": [
+                            "text_content^3",         # تعزيز عالي لمحتوى النص
+                            "text_content.ngram^2",   # تعزيز للبحث الجزئي (N-gram)
+                            "book_title^1.5",         # تعزيز لعنوان الكتاب
+                            "author_name^1.2"         # تعزيز لاسم المؤلف
+                        ],
+                        "type": "best_fields",  # أخذ النقاط من أفضل حقل مطابق
+                        "fuzziness": "AUTO",    # السماح ببعض الأخطاء الإملائية
+                        "operator": "or"        # مطابقة أي من المصطلحات
                     }
-                }
-            })
-            # مطابقة جميع الكلمات الرئيسية كشروط إلزامية (AND)
-            query_clauses.append({
-                "match": {
-                    "text_content": {
-                        "query": query,
-                        "operator": "and",      # يجب أن تكون جميع المصطلحات موجودة
-                        "boost": 20             # تعزيز عالي لوجود جميع المصطلحات
+                })
+                # مطابقة العبارة الدقيقة مع تعزيز عالي جداً
+                query_clauses.append({
+                    "match_phrase": {
+                        "text_content": {
+                            "query": query,
+                            "boost": 100,           # تعزيز عالي جداً للمطابقة الدقيقة للعبارة
+                            "slop": 2               # السماح بوجود الكلمات متباعدة بمقدار 2 موضع
+                        }
                     }
-                }
-            })
+                })
+                # مطابقة جميع الكلمات الرئيسية كشروط إلزامية (AND)
+                query_clauses.append({
+                    "match": {
+                        "text_content": {
+                            "query": query,
+                            "operator": "and",      # يجب أن تكون جميع المصطلحات موجودة
+                            "boost": 20             # تعزيز عالي لوجود جميع المصطلحات
+                        }
+                    }
+                })
 
-        if author_query:
-            # البحث عن اسم المؤلف في حقول متعددة مع تعزيزات
-            author_clauses.append({
-                "multi_match": {
-                    "query": author_query,
-                    "fields": [
-                        "author_name^5",          # تعزيز عالي جداً لاسم المؤلف
-                        "author_name.ngram^3"     # تعزيز للبحث الجزئي عن اسم المؤلف
-                    ],
-                    "type": "best_fields",
-                    "fuzziness": "AUTO"
-                }
-            })
-            # مطابقة العبارة الدقيقة لاسم المؤلف مع تعزيز أعلى
-            author_clauses.append({
-                "match_phrase": {
-                    "author_name": {
+            if author_query:
+                # البحث عن اسم المؤلف في حقول متعددة مع تعزيزات
+                author_clauses.append({
+                    "multi_match": {
                         "query": author_query,
-                        "boost": 150 # تعزيز أعلى لمطابقة عبارة المؤلف الدقيقة
+                        "fields": [
+                            "author_name^5",          # تعزيز عالي جداً لاسم المؤلف
+                            "author_name.ngram^3"     # تعزيز للبحث الجزئي عن اسم المؤلف
+                        ],
+                        "type": "best_fields",
+                        "fuzziness": "AUTO"
+                    }
+                })
+                # مطابقة العبارة الدقيقة لاسم المؤلف مع تعزيز أعلى
+                author_clauses.append({
+                    "match_phrase": {
+                        "author_name": {
+                            "query": author_query,
+                            "boost": 150 # تعزيز أعلى لمطابقة عبارة المؤلف الدقيقة
+                        }
+                    }
+                })
+
+            final_query = {}
+
+            if query and author_query:
+                # إذا كان هناك سؤال ومؤلف، يجب أن تتطابق كليهما
+                final_query = {
+                    "bool": {
+                        "must": [
+                            {"bool": {"should": query_clauses, "minimum_should_match": 1}},
+                            {"bool": {"should": author_clauses, "minimum_should_match": 1}}
+                        ]
                     }
                 }
-            })
+            elif query:
+                # إذا كان البحث بالسؤال فقط
+                final_query = {
+                    "bool": {
+                        "should": query_clauses,
+                        "minimum_should_match": 1
+                    }
+                }
+            elif author_query:
+                # إذا كان البحث بالمؤلف فقط
+                final_query = {
+                    "bool": {
+                        "should": author_clauses,
+                        "minimum_should_match": 1
+                    }
+                }
+            else:
+                # هذا الشرط لا ينبغي أن يحدث بسبب التحقق الأولي، ولكن كاحتياطي
+                final_query = {"match_all": {}}
 
-        final_query = {}
+            search_body = {
+                "query": final_query,
+                "size": 50 # تم زيادة عدد النتائج المسترجعة إلى 50
+            }
+            
+            res = es.search(index=INDEX_NAME, body=search_body)
 
-        if query and author_query:
-            # إذا كان هناك سؤال ومؤلف، يجب أن تتطابق كليهما
-            final_query = {
-                "bool": {
-                    "must": [
-                        {"bool": {"should": query_clauses, "minimum_should_match": 1}},
-                        {"bool": {"should": author_clauses, "minimum_should_match": 1}}
-                    ]
-                }
-            }
-        elif query:
-            # إذا كان البحث بالسؤال فقط
-            final_query = {
-                "bool": {
-                    "should": query_clauses,
-                    "minimum_should_match": 1
-                }
-            }
-        elif author_query:
-            # إذا كان البحث بالمؤلف فقط
-            final_query = {
-                "bool": {
-                    "should": author_clauses,
-                    "minimum_should_match": 1
-                }
-            }
+            for hit in res['hits']['hits']:
+                source = hit['_source']
+                sources_retrieved.append({
+                    "book_title": source.get('book_title', 'غير معروف'),
+                    "author_name": source.get('author_name', 'غير معروف'),
+                    "part_number": source.get('part_number', 'غير معروف'),
+                    "page_number": source.get('page_number', 'غير معروف'),
+                    "text_content": source.get('text_content', 'لا يوجد نص.')
+                })
+            print(f"Retrieved {len(sources_retrieved)} sources from Elasticsearch.")
         else:
-            # هذا الشرط لا ينبغي أن يحدث بسبب التحقق الأولي، ولكن كاحتياطي
-            final_query = {"match_all": {}}
+            print("Elasticsearch client not initialized. Skipping source retrieval.")
 
-        search_body = {
-            "query": final_query,
-            "size": 50 # تم زيادة عدد النتائج المسترجعة إلى 50
-        }
-        
-        res = es.search(index=INDEX_NAME, body=search_body)
-
-        context_texts = []
-        for hit in res['hits']['hits']:
-            source = hit['_source']
-            context_texts.append({
-                "book_title": source.get('book_title', 'غير معروف'),
-                "author_name": source.get('author_name', 'غير معروف'),
-                "part_number": source.get('part_number', 'غير معروف'),
-                "page_number": source.get('page_number', 'غير معروف'),
-                "text_content": source.get('text_content', 'لا يوجد نص.')
-            })
-        
-        if not context_texts:
-            return jsonify({
-                "question": query,
-                "gemini_answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لنموذج Gemini.",
-                "claude_answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لنموذج Claude.",
-                "sources_retrieved": [] 
-            })
+        if not sources_retrieved:
+            # إذا لم يتم العثور على مصادر، لا تزال تحاول توليد إجابة عامة من AI
+            # ولكن قم بتعديل المطالبة لتعكس عدم وجود مصادر محددة
+            print("No sources retrieved from Elasticsearch. AI will answer based on general knowledge.")
 
         # تحضير السياق لنماذج الذكاء الاصطناعي
         context_string = "\n\n".join([
             f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
-            for s in context_texts
+            for s in sources_retrieved
         ])
 
         # --- توليد الإجابة من Gemini 2.0 Flash ---
@@ -220,7 +220,7 @@ def ask_ai(): # تم تغيير اسم الدالة ليعكس دعم كلا ا�
 
                 النصوص المتاحة:
                 ---
-                {context_string}
+                {context_string if sources_retrieved else "لا توجد مصادر محددة. أجب بناءً على معرفتك العامة."}
                 ---
                 """
                 
@@ -263,7 +263,7 @@ def ask_ai(): # تم تغيير اسم الدالة ليعكس دعم كلا ا�
 
                 النصوص المتاحة:
                 ---
-                {context_string}
+                {context_string if sources_retrieved else "لا توجد مصادر محددة. أجب بناءً على معرفتك العامة."}
                 ---
                 """
                 
@@ -286,13 +286,14 @@ def ask_ai(): # تم تغيير اسم الدالة ليعكس دعم كلا ا�
             "question": query,
             "gemini_answer": gemini_answer,
             "claude_answer": claude_answer,
-            "sources_retrieved": context_texts
+            "sources_retrieved": sources_retrieved
         })
 
     except Exception as e:
         print(f"خطأ عام أثناء معالجة السؤال أو استدعاء AI: {e}")
-        return jsonify({"error": "حدث خطأ أثناء معالجة طلبك."}), 500
+        # يجب أن نكون أكثر تحديدًا هنا، ولكن هذا سيساعد في اكتشاف الأخطاء
+        return jsonify({"error": f"حدث خطأ أثناء معالجة طلبك: {e}"}), 500
 
 # 4. تشغيل تطبيق Flask
 if __name__ == '__main__':
-    app.run(debug=True, port=os.environ.get("PORT", 5000)) # استخدام متغير البيئة PORT الذي يوفره Render
+    app.run(debug=True, host='0.0.0.0', port=os.environ.get("PORT", 5000)) # استخدام متغير البيئة PORT الذي يوفره Render
