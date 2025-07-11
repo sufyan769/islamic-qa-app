@@ -5,10 +5,11 @@ from elasticsearch.exceptions import ConnectionError, AuthenticationException
 import os
 import sys
 import requests # تم إضافة هذا لاستدعاء Gemini API
-from openai import OpenAI # تم إضافة هذا لاستدعاء OpenAI (GPT)
+# تم حذف استيراد OpenAI (GPT)
 import json # تم إضافة هذا لمعالجة استجابات JSON من Gemini
 
 from flask_cors import CORS
+from anthropic import Anthropic # استيراد مكتبة Anthropic لـ Claude
 
 # تهيئة تطبيق Flask
 app = Flask(__name__)
@@ -51,20 +52,24 @@ except Exception as e:
 # اسم الفهرس الذي قمنا بإنشائه
 INDEX_NAME = "islamic_texts"
 
-# 2. إعدادات AI API (Gemini و GPT)
+# 2. إعدادات AI API (Gemini و Claude)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") # مفتاح API لـ Gemini
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") # مفتاح API لـ OpenAI (GPT)
+# تم حذف متغير البيئة لمفتاح OpenAI API (GPT)
 
-# تهيئة عميل OpenAI
-openai_client = None
-if OPENAI_API_KEY:
+# مفتاح API الخاص بـ Claude (يجب أن يُقرأ من متغيرات البيئة لضمان الأمان)
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
+
+# تهيئة عميل Claude
+claude_client = None
+if ANTHROPIC_API_KEY:
     try:
-        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+        claude_client = Anthropic(api_key=ANTHROPIC_API_KEY)
+        print("Claude client initialized successfully.")
     except Exception as e:
-        print(f"ERROR: Failed to initialize OpenAI client: {e}")
-        openai_client = None
+        print(f"Error initializing Claude client: {e}")
 else:
-    print("تحذير: لم يتم تعيين مفتاح OpenAI API. لن تعمل وظيفة الذكاء الاصطناعي (GPT).")
+    print("ANTHROPIC_API_KEY not set. Claude API will not be available.")
 
 # 3. نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج AI
 @app.route('/ask', methods=['GET'])
@@ -194,7 +199,7 @@ def ask_ai(): # تم تغيير اسم الدالة ليعكس دعم كلا ا�
             return jsonify({
                 "question": query,
                 "gemini_answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لنموذج Gemini.",
-                "gpt_answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لنموذج GPT.",
+                "claude_answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لنموذج Claude.",
                 "sources_retrieved": [] 
             })
 
@@ -247,11 +252,11 @@ def ask_ai(): # تم تغيير اسم الدالة ليعكس دعم كلا ا�
             gemini_answer = "لم يتم تفعيل نموذج Gemini (مفتاح API غير متوفر في متغيرات البيئة)."
 
 
-        # --- توليد الإجابة من GPT ---
-        gpt_answer = ""
-        if openai_client:
+        # --- توليد الإجابة من Claude ---
+        claude_answer = ""
+        if claude_client:
             try:
-                gpt_prompt = f"""
+                claude_prompt = f"""
                 بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.
                 يجب أن تتضمن إجابتك اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها.
                 إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك.
@@ -262,26 +267,25 @@ def ask_ai(): # تم تغيير اسم الدالة ليعكس دعم كلا ا�
                 ---
                 """
                 
-                gpt_response = openai_client.chat.completions.create(
-                    model="gpt-3.5-turbo", # يمكنك تغيير النموذج هنا (مثل gpt-4, gpt-4o إذا كان متاحًا)
+                message = claude_client.messages.create(
+                    model="claude-3-5-sonnet-20241022", # نموذج Claude Sonnet
+                    max_tokens=1000, # الحد الأقصى للتوكنات في الإجابة
                     messages=[
-                        {"role": "system", "content": "أنت مساعد متخصص في الإجابة على الأسئلة الإسلامية بناءً على النصوص المقدمة، مع ذكر المصادر بدقة."},
-                        {"role": "user", "content": gpt_prompt}
-                    ],
-                    max_tokens=500, # تحديد أقصى طول للإجابة
-                    temperature=0.7 # مستوى الإبداع
+                        {"role": "user", "content": claude_prompt}
+                    ]
                 )
-                gpt_answer = gpt_response.choices[0].message.content
+                claude_answer = message.content[0].text
+                print("Claude API call successful.")
             except Exception as e:
-                gpt_answer = f"خطأ في الاتصال بنموذج GPT: {e}"
-                print(f"ERROR: GPT API call failed: {e}")
+                claude_answer = f"حدث خطأ أثناء استدعاء Claude API: {e}"
+                print(f"ERROR: Claude API call failed: {e}")
         else:
-            gpt_answer = "لم يتم تفعيل نموذج GPT (مفتاح API غير متوفر في متغيرات البيئة)."
+            claude_answer = "لم يتم تفعيل نموذج Claude (مفتاح API غير متوفر في متغيرات البيئة)."
         
         return jsonify({
             "question": query,
             "gemini_answer": gemini_answer,
-            "gpt_answer": gpt_answer,
+            "claude_answer": claude_answer,
             "sources_retrieved": context_texts
         })
 
