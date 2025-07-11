@@ -56,7 +56,7 @@
             background-color: #8b5e3c; /* لون بني داكن للزر */
             color: white;
             padding: 12px 20px;
-            border-radius: 8px; /* زوايا مستديرة */
+            border-radius: 88px; /* زوايا مستديرة */
             font-size: 1.1rem;
             font-weight: 600;
             cursor: pointer;
@@ -303,7 +303,6 @@
               measurementId: "G-GMEN1N432F"
             };
 
-            // لا حاجة لـ try-catch حول JSON.parse بعد الآن لأننا نستخدم الكائن مباشرة
             const app = firebase.initializeApp(firebaseConfig); 
             db = firebase.firestore(); 
             auth = firebase.auth();   
@@ -370,9 +369,12 @@
                     return;
                 }
                 try {
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    // Log the appId being used for Firestore path
+                    const appIdForFirestore = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    console.log("Firestore Path App ID (for saving):", appIdForFirestore);
+
                     // استخدام db.collection() بدلاً من collection()
-                    const questionsCollectionRef = db.collection(`artifacts/${appId}/public/data/asked_questions`);
+                    const questionsCollectionRef = db.collection(`artifacts/${appIdForFirestore}/public/data/asked_questions`);
                     await questionsCollectionRef.add({ // استخدام add() بدلاً من addDoc()
                         question: questionText,
                         timestamp: firebase.firestore.FieldValue.serverTimestamp(), // استخدام serverTimestamp
@@ -380,7 +382,7 @@
                     });
                     console.log("Question saved to Firestore:", questionText);
                 } catch (e) {
-                    console.error("Error adding document: ", e);
+                    console.error("Error adding document to Firestore: ", e);
                 }
             }
 
@@ -392,9 +394,12 @@
                 }
                 popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">جاري تحميل الأسئلة...</p>';
                 try {
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    // Log the appId being used for Firestore path
+                    const appIdForFirestore = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    console.log("Firestore Path App ID (for loading):", appIdForFirestore);
+
                     // استخدام db.collection() بدلاً من collection()
-                    const questionsCollectionRef = db.collection(`artifacts/${appId}/public/data/asked_questions`);
+                    const questionsCollectionRef = db.collection(`artifacts/${appIdForFirestore}/public/data/asked_questions`);
                     const q = questionsCollectionRef.orderBy("timestamp", "desc").limit(10); // استخدام orderBy و limit مباشرة على المرجع
                     const querySnapshot = await q.get(); // استخدام get() بدلاً من getDocs()
 
@@ -415,7 +420,7 @@
                         });
                     }
                 } catch (e) {
-                    console.error("Error loading popular questions: ", e);
+                    console.error("Error loading popular questions from Firestore: ", e);
                     popularQuestionsList.innerHTML = '<p class="error-message">فشل تحميل الأسئلة الشائعة.</p>';
                 }
             }
