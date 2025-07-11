@@ -153,22 +153,25 @@
             padding-top: 0;
             margin-top: 0;
         }
+        /* تعديلات على تنسيق المصادر */
         .source-header {
             font-weight: 600;
-            margin-bottom: 8px;
-            color: #4338CA;
-            font-size: 1.2rem;
+            margin-bottom: 2px; /* تقليل المسافة بعد عنوان الكتاب */
+            color: #4338CA; /* لون أزرق داكن للكتاب */
+            font-size: 1.1rem; /* حجم خط أصغر قليلاً لعنوان الكتاب */
         }
         .source-meta {
-            font-size: 0.95rem;
+            font-size: 0.9rem; /* حجم خط أصغر للمؤلف والجزء والصفحة */
             color: #64748B; /* لون رمادي أزرق */
-            margin-bottom: 12px;
+            margin-bottom: 8px; /* تقليل المسافة بعد المؤلف */
         }
         .source-text-truncated {
             font-size: 1rem;
             color: #334155;
-            margin-top: 10px;
+            margin-top: 0; /* إزالة المسافة العلوية */
             white-space: pre-wrap;
+            line-height: 1.5; /* تباعد أسطر معتدل */
+            text-indent: 0; /* إزالة المسافة البادئة */
         }
         .toggle-text-button {
             color: #4338CA;
@@ -251,7 +254,7 @@
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
         #popularQuestionsList li::before {
-            content: "💡"; /* أيقونة خفيفة */
+            content: "�"; /* أيقونة خفيفة */
             margin-right: 10px;
             font-size: 1.2rem;
         }
@@ -757,3 +760,4 @@
     </script>
 </body>
 </html>
+�
