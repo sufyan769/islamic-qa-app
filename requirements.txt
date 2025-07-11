@@ -3,3 +3,4 @@ elasticsearch
 requests
 openai
 gunicorn
+flask-cors
