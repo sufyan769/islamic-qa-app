@@ -10,208 +10,253 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #fdfaf6; /* لون ورق قديم فاتح */
+            background-color: #F8FAFC; /* خلفية فاتحة ونظيفة */
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             padding: 20px;
-            font-size: 1.1rem; /* تكبير الخط الأساسي */
-            color: #5a3d2b; /* لون بني داكن للنصوص */
+            font-size: 1.1rem;
+            color: #1E293B; /* لون نص داكن */
         }
         .container {
             background-color: #ffffff;
-            border-radius: 12px; /* زوايا مستديرة */
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            max-width: 900px; /* زيادة عرض الحاوية */
+            border-radius: 16px; /* زوايا أكثر استدارة */
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15); /* ظل أكبر وأكثر وضوحًا */
+            padding: 40px;
+            max-width: 950px; /* زيادة عرض الحاوية */
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 25px;
         }
         .input-section {
             display: flex;
-            gap: 10px;
-            flex-wrap: wrap; /* للسماح للعناصر بالانتقال إلى سطر جديد في الشاشات الصغيرة */
+            gap: 15px;
+            flex-wrap: wrap;
         }
         .input-field {
-            flex: 1 1 48%; /* لتقسيم المساحة بين حقول الإدخال */
-            min-width: 250px; /* لضمان عدم تضييق الحقول كثيرًا */
+            flex: 1 1 45%; /* توزيع مرن للحقول */
+            min-width: 280px;
         }
         #questionInput, #authorInput {
-            width: 100%; /* لجعل حقول الإدخال تملأ المساحة المتاحة */
-            padding: 12px 15px;
-            border: 1px solid #d1c1b0; /* لون بني فاتح للحدود */
-            border-radius: 8px; /* زوايا مستديرة */
+            width: 100%;
+            padding: 14px 18px;
+            border: 1px solid #CBD5E1; /* لون حدود رمادي فاتح */
+            border-radius: 10px; /* زوايا مستديرة أكثر */
             font-size: 1.1rem;
             outline: none;
-            transition: border-color 0.2s;
-            color: #5a3d2b;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            color: #1E293B;
+            background-color: #F8FAFC; /* خلفية خفيفة لحقول الإدخال */
         }
         #questionInput:focus, #authorInput:focus {
-            border-color: #8b5e3c; /* لون بني أغمق عند التركيز */
+            border-color: #4338CA; /* لون أزرق داكن عند التركيز */
+            box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.2); /* ظل خفيف عند التركيز */
         }
         #askButton {
-            background-color: #8b5e3c; /* لون بني داكن للزر */
+            background-color: #4338CA; /* لون أزرق داكن للزر */
             color: white;
-            padding: 12px 20px;
-            border-radius: 88px; /* زوايا مستديرة */
-            font-size: 1.1rem;
-            font-weight: 600;
+            padding: 14px 25px;
+            border-radius: 10px;
+            font-size: 1.15rem; /* حجم خط أكبر للزر */
+            font-weight: 700;
             cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
+            transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
             white-space: nowrap;
-            flex-shrink: 0; /* لمنع الزر من الانكماش */
+            flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(67, 56, 202, 0.3); /* ظل للزر */
         }
         #askButton:hover {
-            background-color: #6a4a30; /* لون بني أغمق عند التحويم */
-            transform: translateY(-1px);
+            background-color: #3730A3; /* لون أزرق أغمق عند التحويم */
+            transform: translateY(-2px); /* تأثير رفع خفيف */
+            box-shadow: 0 6px 15px rgba(67, 56, 202, 0.4);
+        }
+        #askButton:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(67, 56, 202, 0.2);
         }
         #responseArea {
-            background-color: #fdfaf6; /* نفس لون الخلفية للورق القديم */
-            border: 1px solid #d1c1b0; /* لون بني فاتح للحدود */
-            border-radius: 8px; /* زوايا مستديرة */
-            padding: 15px;
-            min-height: 150px;
+            background-color: #FDFDFE; /* خلفية بيضاء ناصعة لمنطقة الاستجابة */
+            border: 1px solid #E2E8F0; /* حدود رمادية ناعمة */
+            border-radius: 12px;
+            padding: 25px;
+            min-height: 200px;
             font-size: 1.1rem;
-            color: #5a3d2b;
-            line-height: 1.8; /* زيادة تباعد الأسطر */
+            color: #334155; /* لون نص رمادي أغمق */
+            line-height: 1.7;
             overflow-y: auto;
-            max-height: 600px; /* زيادة أقصى ارتفاع */
+            max-height: 650px;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05); /* ظل داخلي خفيف */
         }
         .loading-spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
-            border-top: 4px solid #8b5e3c; /* لون بني للسبينر */
+            border-top: 4px solid #4338CA; /* لون أزرق للسبينر */
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 30px; /* سبينر أكبر */
+            height: 30px;
             animation: spin 1s linear infinite;
-            margin: 0 auto;
+            margin: 20px auto; /* مسافة أكبر */
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
         .error-message {
-            color: #dc2626;
-            font-weight: 600;
+            color: #EF4444; /* لون أحمر ساطع للخطأ */
+            font-weight: 700;
             text-align: center;
+            padding: 10px;
+            background-color: #FEF2F2; /* خلفية حمراء فاتحة للخطأ */
+            border-radius: 8px;
+        }
+        .answer-section h2 {
+            font-size: 1.6rem; /* خط أكبر للعناوين */
+            font-weight: 700;
+            color: #4338CA; /* لون أزرق داكن للعناوين */
+            margin-bottom: 15px;
+            border-bottom: 2px solid #E0E7FF; /* خط سفلي خفيف */
+            padding-bottom: 8px;
+        }
+        .answer-section p {
+            margin-bottom: 15px;
+            color: #334155;
         }
         .author-group {
-            background-color: #fffefb; /* لون أفتح قليلاً للمجموعة */
-            border: 1px solid #e0d0c0; /* حدود خفيفة */
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px; /* مسافة أكبر بين مجموعات المؤلفين */
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            background-color: #F0F4F8; /* لون رمادي مزرق فاتح للمجموعة */
+            border: 1px solid #CBD5E1;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
         }
         .author-group-header {
-            font-weight: 700; /* خط أثقل لاسم المؤلف */
-            margin-bottom: 10px;
-            color: #6a4a30; /* لون بني متوسط */
-            font-size: 1.3rem; /* تكبير خط اسم المؤلف */
-            cursor: pointer; /* للإشارة إلى أنه قابل للنقر */
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #1E293B;
+            font-size: 1.4rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .author-group-header:hover {
             text-decoration: underline;
         }
         .source-item {
-            border-top: 1px dashed #e0d0c0; /* خط فاصل بين المصادر لنفس المؤلف */
-            padding-top: 10px;
-            margin-top: 10px;
+            border-top: 1px dashed #D1D5DB; /* خط فاصل رمادي */
+            padding-top: 15px;
+            margin-top: 15px;
         }
         .source-item:first-child {
-            border-top: none; /* لا يوجد خط فاصل لأول مصدر في المجموعة */
+            border-top: none;
             padding-top: 0;
             margin-top: 0;
         }
         .source-header {
             font-weight: 600;
-            margin-bottom: 5px;
-            color: #8b5e3c; /* لون بني داكن للكتاب */
-            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: #4338CA;
+            font-size: 1.2rem;
         }
         .source-meta {
             font-size: 0.95rem;
-            color: #8b7367; /* لون بني رمادي */
-            margin-bottom: 10px;
+            color: #64748B; /* لون رمادي أزرق */
+            margin-bottom: 12px;
         }
         .source-text-truncated {
             font-size: 1rem;
-            color: #5a3d2b;
+            color: #334155;
             margin-top: 10px;
-            white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
+            white-space: pre-wrap;
         }
         .toggle-text-button {
-            color: #8b5e3c;
+            color: #4338CA;
             cursor: pointer;
             text-decoration: underline;
             font-weight: 600;
-            margin-top: 5px;
+            margin-top: 8px;
             display: inline-block;
             font-size: 0.95rem;
         }
         .toggle-text-button:hover {
-            color: #6a4a30;
+            color: #3730A3;
         }
         .show-all-author-sources-button {
-            background-color: #d1c1b0; /* لون زر مختلف */
-            color: #5a3d2b;
-            padding: 8px 15px;
-            border-radius: 6px;
-            font-size: 0.95rem;
+            background-color: #E0E7FF; /* لون أزرق فاتح جداً */
+            color: #4338CA;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
             transition: background-color 0.2s;
-            display: block; /* لجعل الزر يأخذ سطرًا كاملاً */
-            width: fit-content; /* لجعل الزر يتناسب مع المحتوى */
-            margin-top: 15px;
-            text-decoration: none; /* إزالة التسطير الافتراضي */
+            display: block;
+            width: fit-content;
+            margin: 20px auto 0; /* توسيط الزر */
+            text-decoration: none;
         }
         .show-all-author-sources-button:hover {
-            background-color: #c0b0a0;
+            background-color: #C7D2FE;
         }
         /* نمط للكلمات المميزة في النص */
         .highlight {
-            background-color: #fcd34d; /* لون أصفر فاتح للتمييز */
-            color: #92400e; /* لون بني غامق للكلمة المميزة */
+            background-color: #FDE68A; /* لون أصفر ذهبي للتمييز */
+            color: #92400E;
             font-weight: bold;
-            padding: 1px 3px;
-            border-radius: 3px;
+            padding: 2px 5px;
+            border-radius: 4px;
         }
         /* قسم الأسئلة الشائعة */
         #popularQuestionsSection {
-            background-color: #fdfaf6;
-            border: 1px solid #d1c1b0;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 20px;
+            background-color: #F0F4F8; /* خلفية فاتحة للقسم */
+            border: 1px solid #CBD5E1;
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
         }
         #popularQuestionsSection h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #8b5e3c;
-            margin-bottom: 10px;
+            font-size: 1.8rem; /* خط أكبر للعناوين */
+            font-weight: 700;
+            color: #4338CA;
+            margin-bottom: 15px;
             text-align: center;
+            border-bottom: 2px solid #E0E7FF;
+            padding-bottom: 10px;
         }
         #popularQuestionsList {
             list-style: none;
             padding: 0;
+            display: grid; /* استخدام grid لتخطيط أفضل */
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* أعمدة مرنة */
+            gap: 12px; /* مسافة بين العناصر */
         }
         #popularQuestionsList li {
-            background-color: #fffefb;
-            border: 1px solid #e0d0c0;
-            border-radius: 6px;
-            padding: 10px 15px;
-            margin-bottom: 8px;
+            background-color: #ffffff;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            padding: 15px 20px;
             cursor: pointer;
-            transition: background-color 0.2s;
-            color: #5a3d2b;
+            transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+            color: #334155;
             font-size: 1rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
         }
         #popularQuestionsList li:hover {
-            background-color: #f5f0eb;
+            background-color: #F0F4F8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        #popularQuestionsList li::before {
+            content: "💡"; /* أيقونة خفيفة */
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+        .hidden {
+            display: none !important;
         }
     </style>
     <!-- استيراد Firebase SDKs بشكل مباشر (الإصدارات المتوافقة) -->
@@ -221,7 +266,7 @@
 </head>
 <body>
     <div class="container">
-        <h1 class="text-3xl font-bold text-center text-amber-900">نظام الأسئلة والأجوبة الإسلامي</h1>
+        <h1 class="text-4xl font-bold text-center text-indigo-700 mb-6">نظام الأسئلة والأجوبة الإسلامي</h1>
         <div class="input-section">
             <div class="input-field">
                 <input type="text" id="questionInput" placeholder="اكتب سؤالك هنا...">
@@ -231,6 +276,17 @@
             </div>
             <button id="askButton">اسأل</button>
         </div>
+
+        <!-- قسم الأسئلة الشائعة (يظهر مبدئيًا) -->
+        <div id="popularQuestionsSection">
+            <h2>الأسئلة الشائعة</h2>
+            <ul id="popularQuestionsList">
+                <!-- سيتم تحميل الأسئلة هنا بواسطة JavaScript -->
+                <p class="text-center text-gray-500">جاري تحميل الأسئلة...</p>
+            </ul>
+        </div>
+
+        <!-- منطقة عرض الإجابة (تختفي مبدئيًا) -->
         <div id="responseArea" class="response-area hidden">
             <!-- رسالة التحميل -->
             <div id="loadingMessage" class="hidden">
@@ -239,13 +295,13 @@
             </div>
 
             <!-- منطقة عرض الإجابة من الذكاء الاصطناعي (Gemini) -->
-            <div id="geminiAnswerContent" class="mb-4 text-lg text-gray-800 leading-relaxed"></div>
+            <div id="geminiAnswerContent" class="answer-section mb-4"></div>
             
-            <!-- منطقة عرض الإجابة من الذكاء الاصطناعي (GPT) -->
-            <div id="gptAnswerContent" class="mb-4 text-lg text-gray-800 leading-relaxed"></div>
+            <!-- منطقة عرض الإجابة من الذكاء الاصطناعي (Claude) -->
+            <div id="claudeAnswerContent" class="answer-section mb-4"></div>
             
             <!-- عنوان المصادر -->
-            <h2 id="sourcesHeader" class="text-xl font-semibold text-amber-900 mb-4 hidden"></h2>
+            <h2 id="sourcesHeader" class="text-xl font-semibold text-indigo-700 mb-4 hidden"></h2>
             
             <!-- حاوية المصادر -->
             <div id="sourcesContainer">
@@ -254,15 +310,6 @@
             
             <!-- رسالة عدم وجود نتائج -->
             <p id="noResultsMessage" class="text-gray-500 text-center hidden">عذراً، لم أجد معلومات ذات صلة في المكتبة.</p>
-        </div>
-
-        <!-- قسم الأسئلة الشائعة -->
-        <div id="popularQuestionsSection">
-            <h2>الأسئلة الشائعة</h2>
-            <ul id="popularQuestionsList">
-                <!-- سيتم تحميل الأسئلة هنا بواسطة JavaScript -->
-                <p class="text-center text-gray-500">جاري تحميل الأسئلة...</p>
-            </ul>
         </div>
     </div>
 
@@ -277,9 +324,10 @@
             console.log("askButton element:", askButton); 
 
             const responseArea = document.getElementById('responseArea');
+            const popularQuestionsSection = document.getElementById('popularQuestionsSection'); // العنصر الجديد
             const popularQuestionsList = document.getElementById('popularQuestionsList');
             const geminiAnswerContent = document.getElementById('geminiAnswerContent');
-            const gptAnswerContent = document.getElementById('gptAnswerContent');
+            const claudeAnswerContent = document.getElementById('claudeAnswerContent'); // تم تغيير الاسم ليتناسب مع Claude
             const sourcesHeader = document.getElementById('sourcesHeader');
             const sourcesContainer = document.getElementById('sourcesContainer');
             const noResultsMessage = document.getElementById('noResultsMessage');
@@ -436,22 +484,27 @@
                         responseArea.classList.remove('hidden'); 
                         loadingMessage.classList.add('hidden'); 
                         geminiAnswerContent.innerHTML = '';
-                        gptAnswerContent.innerHTML = '';
+                        claudeAnswerContent.innerHTML = ''; // تم تغيير الاسم
                         sourcesHeader.classList.add('hidden');
                         sourcesContainer.innerHTML = '';
                         noResultsMessage.classList.add('hidden');
                         responseArea.innerHTML = '<p class="error-message">الرجاء إدخال سؤال أو اسم مؤلف.</p>';
+                        // إذا لم يكن هناك سؤال أو مؤلف، أعد إظهار الأسئلة الشائعة
+                        popularQuestionsSection.classList.remove('hidden'); 
                         return;
                     }
+
+                    // إخفاء قسم الأسئلة الشائعة عند طرح سؤال جديد
+                    popularQuestionsSection.classList.add('hidden'); 
+                    responseArea.classList.remove('hidden'); 
 
                     if (question) {
                         await saveQuestionToFirestore(question);
                     }
 
-                    responseArea.classList.remove('hidden'); 
                     loadingMessage.classList.remove('hidden'); 
                     geminiAnswerContent.innerHTML = '';
-                    gptAnswerContent.innerHTML = '';
+                    claudeAnswerContent.innerHTML = ''; // تم تغيير الاسم
                     sourcesHeader.classList.add('hidden');
                     sourcesContainer.innerHTML = '';
                     noResultsMessage.classList.add('hidden');
@@ -477,15 +530,15 @@
 
                         if (response.ok) {
                             if (data.gemini_answer) {
-                                geminiAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة Gemini:</h2><p>${data.gemini_answer}</p>`;
+                                geminiAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-indigo-700 mb-2">إجابة Gemini:</h2><p>${data.gemini_answer}</p>`;
                             } else {
                                 geminiAnswerContent.innerHTML = '';
                             }
 
-                            if (data.gpt_answer) {
-                                gptAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-amber-900 mb-2">إجابة GPT:</h2><p>${data.gpt_answer}</p>`;
+                            if (data.claude_answer) { // تم تغيير الاسم
+                                claudeAnswerContent.innerHTML = `<h2 class="text-xl font-semibold text-indigo-700 mb-2">إجابة Claude:</h2><p>${data.claude_answer}</p>`;
                             } else {
-                                gptAnswerContent.innerHTML = '';
+                                claudeAnswerContent.innerHTML = '';
                             }
 
                             retrievedSourcesData = data.sources_retrieved || [];
@@ -559,20 +612,20 @@
                                         const authorId = button.dataset.authorId;
                                         const sourceIndex = parseInt(button.dataset.sourceIndex);
                                         const textDiv = document.getElementById(`source-text-${authorId}-${sourceIndex}`);
-                                        const isExpanded = button.dataset.expanded === 'true'; // Corrected: Use isExpanded
+                                        const isExpanded = button.dataset.expanded === 'true'; 
 
                                         const authorName = Array.from(groupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === authorId);
                                         const originalSource = groupedSources.get(authorName)[sourceIndex];
 
-                                        if (isExpanded) { // Corrected: Use isExpanded
+                                        if (isExpanded) { 
                                             const highlightedTruncatedText = highlightText(originalSource.text_content, question).substring(0, 250) + '...';
-                                            textDiv.innerHTML = highlightedTruncatedText; // Corrected: Use textDiv
-                                            button.textContent = 'عرض النص كاملاً'; // Corrected: Use button
+                                            textDiv.innerHTML = highlightedTruncatedText; 
+                                            button.textContent = 'عرض النص كاملاً'; 
                                             button.dataset.expanded = 'false';
                                         } else {
                                             const highlightedFullText = highlightText(originalSource.text_content, question);
-                                            textDiv.innerHTML = highlightedFullText; // Corrected: Use textDiv
-                                            button.textContent = 'طي النص'; // Corrected: Use button
+                                            textDiv.innerHTML = highlightedFullText; 
+                                            button.textContent = 'طي النص'; 
                                             button.dataset.expanded = 'true';
                                         }
                                     });
@@ -641,24 +694,24 @@
                                 });
 
                                 function addIndividualToggleListeners(currentAuthorId, currentGroupedSources, currentQuestion) {
-                                    document.querySelectorAll(`.toggle-text-button[data-author-id="${currentAuthorId}"]`).forEach(btnElement => { // Renamed to btnElement
+                                    document.querySelectorAll(`.toggle-text-button[data-author-id="${currentAuthorId}"]`).forEach(btnElement => { 
                                         btnElement.addEventListener('click', () => {
                                             const idx = parseInt(btnElement.dataset.sourceIndex);
-                                            const txtDivElement = document.getElementById(`source-text-${currentAuthorId}-${idx}`); // Renamed to txtDivElement
-                                            const isExpandedLocal = btnElement.dataset.expanded === 'true'; // Corrected: Use isExpandedLocal
+                                            const txtDivElement = document.getElementById(`source-text-${currentAuthorId}-${idx}`); 
+                                            const isExpandedLocal = btnElement.dataset.expanded === 'true'; 
                                             
                                             const authName = Array.from(currentGroupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === currentAuthorId);
                                             const originalSource = currentGroupedSources.get(authName)[idx];
 
-                                            if (isExpandedLocal) { // Corrected: Use isExpandedLocal
+                                            if (isExpandedLocal) { 
                                                 const highlightedTruncatedText = highlightText(originalSource.text_content, currentQuestion).substring(0, 250) + '...';
-                                                txtDivElement.innerHTML = highlightedTruncatedText; // Corrected: Use txtDivElement
-                                                btnElement.textContent = 'عرض النص كاملاً'; // Corrected: Use btnElement
+                                                txtDivElement.innerHTML = highlightedTruncatedText; 
+                                                btnElement.textContent = 'عرض النص كاملاً'; 
                                                 btnElement.dataset.expanded = 'false';
                                             } else {
                                                 const highlightedFullText = highlightText(originalSource.text_content, currentQuestion);
-                                                txtDivElement.innerHTML = highlightedFullText; // Corrected: Use txtDivElement
-                                                btnElement.textContent = 'طي النص'; // Corrected: Use btnElement
+                                                txtDivElement.innerHTML = highlightedFullText; 
+                                                btnElement.textContent = 'طي النص'; 
                                                 btnElement.dataset.expanded = 'true';
                                             }
                                         });
@@ -669,14 +722,14 @@
                                 sourcesHeader.classList.add('hidden');
                                 sourcesContainer.innerHTML = '';
                                 noResultsMessage.classList.remove('hidden');
-                                if (!data.gemini_answer && !data.gpt_answer) {
+                                if (!data.gemini_answer && !data.claude_answer) { // تم تغيير الاسم
                                     noResultsMessage.textContent = 'عذراً، لم أجد معلومات ذات صلة في المكتبة.';
                                     noResultsMessage.classList.remove('hidden');
                                 }
                             }
                         } else {
                             geminiAnswerContent.innerHTML = '';
-                            gptAnswerContent.innerHTML = '';
+                            claudeAnswerContent.innerHTML = ''; // تم تغيير الاسم
                             sourcesHeader.classList.add('hidden');
                             sourcesContainer.innerHTML = '';
                             noResultsMessage.classList.add('hidden');
@@ -685,7 +738,7 @@
                     } catch (error) {
                         console.error('Error fetching data:', error); 
                         geminiAnswerContent.innerHTML = '';
-                        gptAnswerContent.innerHTML = '';
+                        claudeAnswerContent.innerHTML = ''; // تم تغيير الاسم
                         sourcesHeader.classList.add('hidden');
                         sourcesContainer.innerHTML = '';
                         noResultsMessage.classList.add('hidden');
