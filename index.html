@@ -268,8 +268,9 @@
 
     <script>
         // إزالة type="module" لأننا نستورد Firebase SDKs بشكل مباشر الآن
+        // وإزالة استيرادات Firebase من هنا
         console.log("Script started loading."); 
-        // تأكد من أن جميع العناصر موجودة قبل محاولة الوصول إليها
+        
         document.addEventListener('DOMContentLoaded', (event) => {
             console.log("DOMContentLoaded event fired."); 
             const questionInput = document.getElementById('questionInput');
@@ -292,16 +293,17 @@
             let userId;
             let isAuthReady = false;
 
-            // تهيئة Firebase
-            // تأكد من أن هذه الوظائف متاحة عالميًا بعد استيراد السكربتات
+            // تهيئة Firebase باستخدام الكائنات العالمية
+            // هذه الكائنات (firebase.initializeApp, firebase.firestore, firebase.auth)
+            // تصبح متاحة بعد تحميل سكربتات Firebase في قسم <head>
             const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-            const app = firebase.initializeApp(firebaseConfig); // استخدام firebase.initializeApp
-            db = firebase.firestore(); // استخدام firebase.firestore()
-            auth = firebase.auth();   // استخدام firebase.auth()
+            const app = firebase.initializeApp(firebaseConfig); 
+            db = firebase.firestore(); 
+            auth = firebase.auth();   
             console.log("Firebase initialized."); 
 
             // تسجيل الدخول وتحديد userId
-            firebase.auth().onAuthStateChanged(async (user) => { // استخدام firebase.auth().onAuthStateChanged
+            firebase.auth().onAuthStateChanged(async (user) => { 
                 console.log("onAuthStateChanged triggered."); 
                 if (user) {
                     userId = user.uid;
@@ -309,13 +311,13 @@
                 } else {
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         try {
-                            const userCredential = await firebase.auth().signInWithCustomToken(auth, __initial_auth_token); // استخدام firebase.auth().signInWithCustomToken
+                            const userCredential = await firebase.auth().signInWithCustomToken(auth, __initial_auth_token); 
                             userId = userCredential.user.uid;
                             console.log("Signed in with custom token. User ID:", userId);
                         } catch (error) {
                             console.error("Error signing in with custom token:", error);
                             try {
-                                const userCredential = await firebase.auth().signInAnonymously(auth); // استخدام firebase.auth().signInAnonymously
+                                const userCredential = await firebase.auth().signInAnonymously(auth); 
                                 userId = userCredential.user.uid;
                                 console.log("Signed in anonymously. User ID:", userId);
                             } catch (anonError) {
@@ -326,7 +328,7 @@
                         }
                     } else {
                         try {
-                            const userCredential = await firebase.auth().signInAnonymously(auth); // استخدام firebase.auth().signInAnonymously
+                            const userCredential = await firebase.auth().signInAnonymously(auth); 
                             userId = userCredential.user.uid;
                             console.log("Signed in anonymously. User ID:", userId);
                         } catch (anonError) {
@@ -550,7 +552,7 @@
                                         const authorName = Array.from(groupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === authorId);
                                         const originalSource = groupedSources.get(authorName)[sourceIndex];
 
-                                        if (isExpanded) {
+                                        if (exp) {
                                             const highlightedTruncatedText = highlightText(originalSource.text_content, question).substring(0, 250) + '...';
                                             txtDiv.innerHTML = highlightedTruncatedText;
                                             btn.textContent = 'عرض النص كاملاً';
@@ -686,7 +688,7 @@
             }
             console.log("Script finished DOMContentLoaded execution."); 
         }); // نهاية DOMContentLoaded
-        console.log("Script loaded."); // رسالة تتبع جديدة
+        console.log("Script loaded."); 
     </script>
 </body>
 </html>
