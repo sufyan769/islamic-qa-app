@@ -40,6 +40,7 @@ let currentMode = 'default';
 let lastQuery = '';
 let from = 0;
 const size = 20;
+const API_BASE = 'https://islamic-qa-api-backend.onrender.com';
 
 function runSearch(mode) {
   const query = document.getElementById('searchInput').value.trim();
@@ -57,9 +58,7 @@ function runSearch(mode) {
 }
 
 function fetchResults() {
-  let url = `https://islamic-qa-app.onrender.com/ask?q=${encodeURIComponent(lastQuery)}&from=${from}&size=${size}`;
-  if (currentMode === 'ai_only') url += `&mode=ai_only`;
-  if (currentMode === 'default') url += `&mode=default`;
+  let url = `${API_BASE}/ask?q=${encodeURIComponent(lastQuery)}&from=${from}&size=${size}&mode=${currentMode}`;
 
   fetch(url)
     .then(res => res.json())
@@ -83,7 +82,8 @@ function fetchResults() {
       if (currentMode === 'full' && data.sources_retrieved.length === size) {
         document.getElementById('loadMoreContainer').classList.remove('hidden');
       }
-    });
+    })
+    .catch(err => console.error('Fetch error:', err));
 }
 
 function loadMore() {
