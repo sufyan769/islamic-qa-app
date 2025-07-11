@@ -1,7 +1,4 @@
-Flask
+flask
 elasticsearch
-openai
-Flask-Cors
-gunicorn
-ijson
 requests
+openai
