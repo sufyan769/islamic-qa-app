@@ -4,8 +4,9 @@ from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError, AuthenticationException
 import os
 import sys
-# استيراد مكتبة OpenAI بدلاً من Google Generative AI
-# import openai # لم نعد نحتاجها إذا لم نولد إجابات، ولكن سنبقيها لكي لا نكسر requirements.txt
+import requests # تم إضافة هذا لاستدعاء Gemini API
+from openai import OpenAI # تم إضافة هذا لاستدعاء OpenAI (GPT)
+import json # تم إضافة هذا لمعالجة استجابات JSON من Gemini
 
 from flask_cors import CORS
 
@@ -50,16 +51,24 @@ except Exception as e:
 # اسم الفهرس الذي قمنا بإنشائه
 INDEX_NAME = "islamic_texts"
 
-# 2. إعدادات OpenAI API (لـ ChatGPT) - لم نعد نستخدمها لتوليد الإجابات
-# OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") 
-# if not OPENAI_API_KEY:
-#     print("تحذير: لم يتم تعيين مفتاح OpenAI API. لن تعمل وظيفة الذكاء الاصطناعي (إذا تم تفعيلها).")
-# client = openai.OpenAI(api_key=OPENAI_API_KEY)
-# OPENAI_MODEL = "gpt-3.5-turbo" 
+# 2. إعدادات AI API (Gemini و GPT)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") # مفتاح API لـ Gemini
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") # مفتاح API لـ OpenAI (GPT)
 
-# 3. نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج ChatGPT
+# تهيئة عميل OpenAI
+openai_client = None
+if OPENAI_API_KEY:
+    try:
+        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+    except Exception as e:
+        print(f"ERROR: Failed to initialize OpenAI client: {e}")
+        openai_client = None
+else:
+    print("تحذير: لم يتم تعيين مفتاح OpenAI API. لن تعمل وظيفة الذكاء الاصطناعي (GPT).")
+
+# 3. نقطة نهاية (Endpoint) للبحث في Elasticsearch ودمج AI
 @app.route('/ask', methods=['GET'])
-def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini لعدم كسر التوافق مع الواجهة الأمامية
+def ask_ai(): # تم تغيير اسم الدالة ليعكس دعم كلا النموذجين
     query = request.args.get('q', '')
     author_query = request.args.get('author', '') # جلب اسم المؤلف من الطلب
 
@@ -193,18 +202,100 @@ def ask_gemini(): # تم الإبقاء على اسم الدالة ask_gemini ل
         if not context_texts:
             return jsonify({
                 "question": query,
-                "answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لفهم سؤالك.",
+                "gemini_answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لنموذج Gemini.",
+                "gpt_answer": "عذراً، لم أجد معلومات ذات صلة في المكتبة لنموذج GPT.",
                 "sources_retrieved": [] 
             })
 
-        # تم إزالة استدعاء نموذج الذكاء الاصطناعي
-        # الإجابة الآن ستكون فارغة تمامًا
-        answer = "" 
+        # تحضير السياق لنماذج الذكاء الاصطناعي
+        context_string = "\n\n".join([
+            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
+            for s in context_texts
+        ])
+
+        # --- توليد الإجابة من Gemini 2.0 Flash ---
+        gemini_answer = ""
+        if GEMINI_API_KEY:
+            try:
+                gemini_prompt = f"""
+                بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.
+                يجب أن تتضمن إجابتك اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها.
+                إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك.
+
+                النصوص المتاحة:
+                ---
+                {context_string}
+                ---
+                """
+                
+                gemini_payload = {
+                    "contents": [{"role": "user", "parts": [{"text": gemini_prompt}]}],
+                    "generationConfig": {
+                        "responseMimeType": "text/plain"
+                    }
+                }
+                gemini_api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+                
+                gemini_response = requests.post(gemini_api_url, headers={'Content-Type': 'application/json'}, json=gemini_payload, timeout=30) # زيادة المهلة
+                gemini_response.raise_for_status() 
+                gemini_result = gemini_response.json()
+                
+                if gemini_result.get('candidates') and gemini_result['candidates'][0].get('content') and gemini_result['candidates'][0]['content'].get('parts'):
+                    gemini_answer = gemini_result['candidates'][0]['content']['parts'][0]['text']
+                else:
+                    gemini_answer = "عذراً، لم يتمكن نموذج Gemini من توليد إجابة (هيكل استجابة غير متوقع)."
+                    print(f"DEBUG: Gemini API response structure unexpected: {gemini_result}")
+
+            except requests.exceptions.RequestException as req_err:
+                gemini_answer = f"خطأ في الاتصال بنموذج Gemini: {req_err}"
+                print(f"ERROR: Gemini API request failed: {req_err}")
+            except Exception as e:
+                gemini_answer = f"خطأ في معالجة استجابة Gemini: {e}"
+                print(f"ERROR: Processing Gemini response failed: {e}")
+        else:
+            gemini_answer = "لم يتم تفعيل نموذج Gemini (مفتاح API غير متوفر في متغيرات البيئة)."
+
+
+        # --- توليد الإجابة من GPT ---
+        gpt_answer = ""
+        if openai_client:
+            try:
+                gpt_prompt = f"""
+                بناءً على النصوص التالية من الكتب الإسلامية، أجب عن السؤال: '{query}'.
+                يجب أن تتضمن إجابتك اسم المؤلف، اسم الكتاب، رقم الجزء، ورقم الصفحة لكل معلومة تذكرها.
+                إذا لم تجد الإجابة في النصوص المقدمة، اذكر ذلك.
+
+                النصوص المتاحة:
+                ---
+                {context_string}
+                ---
+                """
+                
+                gpt_response = openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo", # يمكنك تغيير النموذج هنا (مثل gpt-4, gpt-4o إذا كان متاحًا)
+                    messages=[
+                        {"role": "system", "content": "أنت مساعد متخصص في الإجابة على الأسئلة الإسلامية بناءً على النصوص المقدمة، مع ذكر المصادر بدقة."},
+                        {"role": "user", "content": gpt_prompt}
+                    ],
+                    max_tokens=500, # تحديد أقصى طول للإجابة
+                    temperature=0.7 # مستوى الإبداع
+                )
+                gpt_answer = gpt_response.choices[0].message.content
+            except Exception as e:
+                gpt_answer = f"خطأ في الاتصال بنموذج GPT: {e}"
+                print(f"ERROR: GPT API call failed: {e}")
+        else:
+            gpt_answer = "لم يتم تفعيل نموذج GPT (مفتاح API غير متوفر في متغيرات البيئة)."
         
-        return jsonify({"question": query, "answer": answer, "sources_retrieved": context_texts})
+        return jsonify({
+            "question": query,
+            "gemini_answer": gemini_answer,
+            "gpt_answer": gpt_answer,
+            "sources_retrieved": context_texts
+        })
 
     except Exception as e:
-        print(f"خطأ أثناء معالجة السؤال أو استدعاء OpenAI (إذا كان لا يزال مفعلاً): {e}")
+        print(f"خطأ عام أثناء معالجة السؤال أو استدعاء AI: {e}")
         return jsonify({"error": "حدث خطأ أثناء معالجة طلبك."}), 500
 
 # 4. تشغيل تطبيق Flask
