@@ -214,10 +214,10 @@
             background-color: #f5f0eb;
         }
     </style>
-    <!-- استيراد Firebase SDKs بشكل مباشر -->
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <!-- استيراد Firebase SDKs بشكل مباشر (الإصدارات المتوافقة) -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
 </head>
 <body>
     <div class="container">
@@ -267,8 +267,6 @@
     </div>
 
     <script>
-        // إزالة type="module" لأننا نستورد Firebase SDKs بشكل مباشر الآن
-        // وإزالة استيرادات Firebase من هنا
         console.log("Script started loading."); 
         
         document.addEventListener('DOMContentLoaded', (event) => {
@@ -294,8 +292,6 @@
             let isAuthReady = false;
 
             // تهيئة Firebase باستخدام الكائنات العالمية
-            // هذه الكائنات (firebase.initializeApp, firebase.firestore, firebase.auth)
-            // تصبح متاحة بعد تحميل سكربتات Firebase في قسم <head>
             const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
             const app = firebase.initializeApp(firebaseConfig); 
             db = firebase.firestore(); 
@@ -311,13 +307,13 @@
                 } else {
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         try {
-                            const userCredential = await firebase.auth().signInWithCustomToken(auth, __initial_auth_token); 
+                            const userCredential = await firebase.auth().signInWithCustomToken(__initial_auth_token); // لا تمرر auth هنا
                             userId = userCredential.user.uid;
                             console.log("Signed in with custom token. User ID:", userId);
                         } catch (error) {
                             console.error("Error signing in with custom token:", error);
                             try {
-                                const userCredential = await firebase.auth().signInAnonymously(auth); 
+                                const userCredential = await firebase.auth().signInAnonymously(); // لا تمرر auth هنا
                                 userId = userCredential.user.uid;
                                 console.log("Signed in anonymously. User ID:", userId);
                             } catch (anonError) {
@@ -328,7 +324,7 @@
                         }
                     } else {
                         try {
-                            const userCredential = await firebase.auth().signInAnonymously(auth); 
+                            const userCredential = await firebase.auth().signInAnonymously(); // لا تمرر auth هنا
                             userId = userCredential.user.uid;
                             console.log("Signed in anonymously. User ID:", userId);
                         } catch (anonError) {
