@@ -559,21 +559,21 @@
                                         const authorId = button.dataset.authorId;
                                         const sourceIndex = parseInt(button.dataset.sourceIndex);
                                         const textDiv = document.getElementById(`source-text-${authorId}-${sourceIndex}`);
-                                        const isExpanded = button.dataset.expanded === 'true';
+                                        const isExpanded = button.dataset.expanded === 'true'; // Corrected: Use isExpanded
 
                                         const authorName = Array.from(groupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === authorId);
                                         const originalSource = groupedSources.get(authorName)[sourceIndex];
 
-                                        if (exp) {
+                                        if (isExpanded) { // Corrected: Use isExpanded
                                             const highlightedTruncatedText = highlightText(originalSource.text_content, question).substring(0, 250) + '...';
-                                            txtDiv.innerHTML = highlightedTruncatedText;
-                                            btn.textContent = 'عرض النص كاملاً';
-                                            btn.dataset.expanded = 'false';
+                                            textDiv.innerHTML = highlightedTruncatedText; // Corrected: Use textDiv
+                                            button.textContent = 'عرض النص كاملاً'; // Corrected: Use button
+                                            button.dataset.expanded = 'false';
                                         } else {
                                             const highlightedFullText = highlightText(originalSource.text_content, question);
-                                            txtDiv.innerHTML = highlightedFullText;
-                                            btn.textContent = 'طي النص';
-                                            btn.dataset.expanded = 'true';
+                                            textDiv.innerHTML = highlightedFullText; // Corrected: Use textDiv
+                                            button.textContent = 'طي النص'; // Corrected: Use button
+                                            button.dataset.expanded = 'true';
                                         }
                                     });
                                 });
@@ -641,25 +641,25 @@
                                 });
 
                                 function addIndividualToggleListeners(currentAuthorId, currentGroupedSources, currentQuestion) {
-                                    document.querySelectorAll(`.toggle-text-button[data-author-id="${currentAuthorId}"]`).forEach(btn => {
-                                        btn.addEventListener('click', () => {
-                                            const idx = parseInt(btn.dataset.sourceIndex);
-                                            const txtDiv = document.getElementById(`source-text-${currentAuthorId}-${idx}`);
-                                            const exp = btn.dataset.expanded === 'true';
+                                    document.querySelectorAll(`.toggle-text-button[data-author-id="${currentAuthorId}"]`).forEach(btnElement => { // Renamed to btnElement
+                                        btnElement.addEventListener('click', () => {
+                                            const idx = parseInt(btnElement.dataset.sourceIndex);
+                                            const txtDivElement = document.getElementById(`source-text-${currentAuthorId}-${idx}`); // Renamed to txtDivElement
+                                            const isExpandedLocal = btnElement.dataset.expanded === 'true'; // Corrected: Use isExpandedLocal
                                             
                                             const authName = Array.from(currentGroupedSources.keys()).find(key => key.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-') === currentAuthorId);
                                             const originalSource = currentGroupedSources.get(authName)[idx];
 
-                                            if (exp) {
+                                            if (isExpandedLocal) { // Corrected: Use isExpandedLocal
                                                 const highlightedTruncatedText = highlightText(originalSource.text_content, currentQuestion).substring(0, 250) + '...';
-                                                txtDiv.innerHTML = highlightedTruncatedText;
-                                                btn.textContent = 'عرض النص كاملاً';
-                                                btn.dataset.expanded = 'false';
+                                                txtDivElement.innerHTML = highlightedTruncatedText; // Corrected: Use txtDivElement
+                                                btnElement.textContent = 'عرض النص كاملاً'; // Corrected: Use btnElement
+                                                btnElement.dataset.expanded = 'false';
                                             } else {
                                                 const highlightedFullText = highlightText(originalSource.text_content, currentQuestion);
-                                                txtDiv.innerHTML = highlightedFullText;
-                                                btn.textContent = 'طي النص';
-                                                btn.dataset.expanded = 'true';
+                                                txtDivElement.innerHTML = highlightedFullText; // Corrected: Use txtDivElement
+                                                btnElement.textContent = 'طي النص'; // Corrected: Use btnElement
+                                                btnElement.dataset.expanded = 'true';
                                             }
                                         });
                                     });
