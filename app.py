@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+دfrom flask import Flask, request, jsonify
 from flask_cors import CORS
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError, AuthenticationException
@@ -30,10 +30,6 @@ try:
 except Exception as e:
     print("Elastic error:", e)
     sys.exit(1)
-
-@app.route("/")
-def home():
-    return "API is working"
 
 @app.route("/ask")
 def ask():
