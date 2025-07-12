@@ -381,10 +381,11 @@ async function showFull(id) {
   const shortElement = document.getElementById('short-' + id);
   const fullText = decodeURIComponent(shortElement.dataset.fullText);
   
-  const bookTitle = decodeURIComponent(shortElement.dataset.bookTitle);
-  const authorName = decodeURIComponent(shortElement.dataset.authorName);
-  const partNumber = decodeURIComponent(shortElement.dataset.partNumber);
-  const pageNumber = decodeURIComponent(shortElement.dataset.pageNumber);
+  // لا يتم فك تشفير هذه المعلمات هنا، لأنها ستُفك تشفيرها في دالة getSequentialText
+  const bookTitle = shortElement.dataset.bookTitle;
+  const authorName = shortElement.dataset.authorName;
+  const partNumber = shortElement.dataset.partNumber;
+  const pageNumber = shortElement.dataset.pageNumber;
 
   shortElement.innerHTML = fullText; // عرض النص الكامل
 
@@ -397,8 +398,8 @@ async function showFull(id) {
   // إضافة أزرار التنقل
   const navButtonsHtml = `
     <div class="navigation-buttons">
-      <button onclick="getSequentialText('${encodeURIComponent(bookTitle)}', '${encodeURIComponent(authorName)}', '${encodeURIComponent(partNumber)}', '${encodeURIComponent(pageNumber)}', 'prev', '${id}')">النص السابق</button>
-      <button onclick="getSequentialText('${encodeURIComponent(bookTitle)}', '${encodeURIComponent(authorName)}', '${encodeURIComponent(partNumber)}', '${encodeURIComponent(pageNumber)}', 'next', '${id}')">النص التالي</button>
+      <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'prev', '${id}')">النص السابق</button>
+      <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'next', '${id}')">النص التالي</button>
     </div>
   `;
   // إضافة الأزرار بعد النص الكامل مباشرة
@@ -407,10 +408,10 @@ async function showFull(id) {
 
 /**
  * تجلب النص التالي أو السابق من نفس الكتاب.
- * @param {string} bookTitle - عنوان الكتاب.
- * @param {string} authorName - اسم المؤلف.
- * @param {string} currentPartNumber - رقم الجزء الحالي.
- * @param {string} currentPageNumber - رقم الصفحة الحالي.
+ * @param {string} bookTitle - عنوان الكتاب (مشفر).
+ * @param {string} authorName - اسم المؤلف (مشفر).
+ * @param {string} currentPartNumber - رقم الجزء الحالي (مشفر).
+ * @param {string} currentPageNumber - رقم الصفحة الحالي (مشفر).
  * @param {string} direction - 'next' أو 'prev'.
  * @param {string} originalElementId - معرف العنصر الأصلي لتحديثه.
  */
@@ -428,12 +429,18 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
     currentTextElement.innerHTML = `<div class="loading-spinner" style="display: block; margin: 10px auto;"></div><p class="text-center text-gray-500">جاري تحميل النص...</p>`;
 
     try {
+        // فك تشفير المعلمات قبل استخدامها في URL
+        const decodedBookTitle = decodeURIComponent(bookTitle);
+        const decodedAuthorName = decodeURIComponent(authorName);
+        const decodedPartNumber = decodeURIComponent(currentPartNumber);
+        const decodedPageNumber = decodeURIComponent(currentPageNumber);
+
         const apiUrl = `${API_BASE_URL}/get_contextual_text?` +
-                       `book_title=${bookTitle}&` +
-                       `author_name=${authorName}&` +
-                       `current_part_number=${currentPartNumber}&` +
-                       `current_page_number=${currentPageNumber}&` +
-                       `direction=${direction}`;
+                       `book_title=${encodeURIComponent(decodedBookTitle)}&` +
+                       `author_name=${encodeURIComponent(decodedAuthorName)}&` +
+                       `current_part_number=${encodeURIComponent(decodedPartNumber)}&` +
+                       `current_page_number=${encodeURIComponent(decodedPageNumber)}&` +
+                       `direction=${encodeURIComponent(direction)}`;
         
         const response = await fetch(apiUrl);
         const data = await response.json();
@@ -456,9 +463,9 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             currentTextElement.dataset.pageNumber = encodeURIComponent(newPageNumber);
 
             // تحديث معلومات المصدر في الواجهة
-            parentResultDiv.querySelector('b:nth-of-type(1)').textContent = `الكتاب: ${decodeURIComponent(newBookTitle) || 'غير معروف'}`;
-            parentResultDiv.querySelector('b:nth-of-type(2)').textContent = `المؤلف: ${decodeURIComponent(newAuthorName) || 'غير معروف'}`;
-            parentResultDiv.querySelector('small').textContent = `الجزء: ${decodeURIComponent(newPartNumber) || 'غير متوفر'}، الصفحة: ${decodeURIComponent(newPageNumber) || 'غير متوفر'}`;
+            parentResultDiv.querySelector('b:nth-of-type(1)').textContent = `الكتاب: ${newBookTitle || 'غير معروف'}`;
+            parentResultDiv.querySelector('b:nth-of-type(2)').textContent = `المؤلف: ${newAuthorName || 'غير معروف'}`;
+            parentResultDiv.querySelector('small').textContent = `الجزء: ${newPartNumber || 'غير متوفر'}، الصفحة: ${newPageNumber || 'غير متوفر'}`;
 
 
             // إعادة إضافة أزرار التنقل للنص الجديد
