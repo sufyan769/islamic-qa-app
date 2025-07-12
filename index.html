@@ -11,6 +11,7 @@
     .more { color: blue; cursor: pointer; display: inline-block; margin-top: 10px; }
     .hidden { display: none; }
     #progress-bar { width: 0%; height: 5px; background: green; transition: width 0.5s; }
+    .error { color: red; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -32,28 +33,39 @@ function search() {
   updateProgress(0);
   simulateProgress();
 
-  fetch(`/ask?q=${encodeURIComponent(q)}&mode=default`)
+  fetch("https://islamic-qa-api-backend.onrender.com/ask?q=" + encodeURIComponent(q) + "&mode=default")
     .then(res => res.json())
     .then(data => {
       updateProgress(100);
-      if (data.claude_answer) document.getElementById('claude').innerHTML = `<b>Claude:</b><br>${data.claude_answer}`;
-      if (data.gemini_answer) document.getElementById('gemini').innerHTML = `<b>Gemini:</b><br>${data.gemini_answer}`;
+      if (data.claude_answer)
+        document.getElementById('claude').innerHTML = `<b>Claude:</b><br>${data.claude_answer}`;
+
+      if (data.gemini_answer && !data.gemini_answer.includes('error'))
+        document.getElementById('gemini').innerHTML = `<b>Gemini:</b><br>${data.gemini_answer}`;
+      else
+        document.getElementById('gemini').innerHTML = `<b>Gemini:</b> <span class='error'>تعذر الحصول على إجابة من Gemini</span>`;
+
       if (data.sources_retrieved) {
         const html = data.sources_retrieved.map(doc => {
           const full = doc.text_content;
-          const short = full.slice(0, 200);
+          const short = full.length > 300 ? full.slice(0, 300) + "..." : full;
           const id = Math.random().toString(36).substring(7);
           return `<div class='result'>
-            <b>${doc.book_title}</b> - ${doc.author_name}<br>
-            الجزء ${doc.part_number}، الصفحة ${doc.page_number}<br>
-            <div id='short-${id}'>${short}... <span class='more' onclick="toggleText('${id}', \
-              \`${full.replace(/`/g, '\\`')}\`) ">عرض المزيد</span></div>
-            <div id='full-${id}' class='hidden'></div>
+            <b>${doc.book_title}</b> - ${doc.author_name} <br>
+            <div id='short-${id}'>${short} <span class='more' onclick="showFull('${id}', \`${full.replace(/`/g, '\\`')}\`)">عرض المزيد</span></div>
           </div>`;
         }).join('');
         document.getElementById('results').innerHTML = html;
       }
+    })
+    .catch(err => {
+      updateProgress(100);
+      document.getElementById('results').innerHTML = "<p class='error'>تعذّر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط</p>";
     });
+}
+
+function showFull(id, fullText) {
+  document.getElementById('short-' + id).innerHTML = fullText;
 }
 
 function updateProgress(val) {
@@ -70,12 +82,6 @@ function simulateProgress() {
       clearInterval(interval);
     }
   }, 300);
-}
-
-function toggleText(id, fullText) {
-  document.getElementById('short-' + id).classList.add('hidden');
-  document.getElementById('full-' + id).innerHTML = fullText;
-  document.getElementById('full-' + id).classList.remove('hidden');
 }
 </script>
 </body>
