@@ -8,8 +8,6 @@
     body { font-family: sans-serif; background: #f9f9f9; padding: 20px; color: #333; }
     input, button { font-size: 1.2em; padding: 10px; margin: 10px 0; width: 100%; }
     .result, .ai-answer { background: #fff; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 0 5px #ccc; }
-    .more { color: blue; cursor: pointer; display: inline-block; margin-top: 10px; }
-    .hidden { display: none; }
     #progress-bar { width: 0%; height: 5px; background: green; transition: width 0.5s; }
   </style>
 </head>
@@ -33,30 +31,28 @@ function search() {
   simulateProgress();
 
   fetch(`/ask?q=${encodeURIComponent(q)}&mode=default`)
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) throw new Error("404");
+      return res.json();
+    })
     .then(data => {
       updateProgress(100);
       if (data.claude_answer) document.getElementById('claude').innerHTML = `<b>Claude:</b><br>${data.claude_answer}`;
       if (data.gemini_answer) document.getElementById('gemini').innerHTML = `<b>Gemini:</b><br>${data.gemini_answer}`;
       if (data.sources_retrieved) {
         const html = data.sources_retrieved.map(doc => {
-          const short = doc.text_content.slice(0, 200);
-          const full = doc.text_content;
-          const id = Math.random().toString(36).substring(7);
           return `<div class='result'>
             <b>${doc.book_title}</b> - ${doc.author_name} <br>
-            <div id='short-${id}'>${short}... <span class='more' onclick="showFull('${id}', \`${full}\`)">عرض المزيد</span></div>
-            <div id='full-${id}' class='hidden'>${full}</div>
+            <div>${doc.text_content}</div>
           </div>`;
         }).join('');
         document.getElementById('results').innerHTML = html;
       }
+    })
+    .catch(() => {
+      updateProgress(0);
+      document.getElementById('results').innerHTML = "<b style='color:red'>تعذر تحميل النتائج، تحقق من الاتصال أو من صحة الرابط.</b>";
     });
-}
-
-function showFull(id, text) {
-  document.getElementById(`short-${id}`).remove();
-  document.getElementById(`full-${id}`).classList.remove('hidden');
 }
 
 function updateProgress(val) {
