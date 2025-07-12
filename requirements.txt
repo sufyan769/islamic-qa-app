@@ -1,6 +1,5 @@
 flask
 elasticsearch
-requests
 gunicorn
 flask-cors
-anthropic
+
