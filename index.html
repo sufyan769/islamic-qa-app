@@ -1,98 +1,75 @@
-# app.py – بعد تنفيذ التحسين 1 و 2 + تخزين الأسئلة السابقة
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from elasticsearch import Elasticsearch
-from elasticsearch.exceptions import ConnectionError, AuthenticationException
-from anthropic import Anthropic
-import os, sys, re, json
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>نظام الأسئلة الإسلامية</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f5f5f5; direction: rtl; }
+    input, button { font-size: 1rem; padding: 5px; }
+    .result { background: white; margin: 10px 0; padding: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .question-link { font-size: 0.9em; color: #007bff; text-decoration: underline; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>ابحث في كتب الإسلام</h1>
+  <form id="searchForm">
+    <input type="text" id="query" placeholder="اكتب سؤالك..." size="40" required />
+    <button type="submit">بحث</button>
+  </form>
 
-app = Flask(__name__)
-CORS(app)
+  <div id="results"></div>
 
-CLOUD_ID = os.environ.get("CLOUD_ID")
-ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
-ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
-INDEX_NAME = "islamic_texts"
+  <hr/>
+  <h3>أسئلة مقترحة:</h3>
+  <ul id="previous-questions"></ul>
 
-CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
-claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
+  <script>
+    const form = document.getElementById("searchForm");
+    const resultsDiv = document.getElementById("results");
+    const prevQuestions = document.getElementById("previous-questions");
 
-AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
+    fetch("/ask?q=كلمة&mode=ai_only")
+      .then(r => r.json())
+      .then(data => {
+        if (data.previous_questions) {
+          data.previous_questions.forEach(q => {
+            const li = document.createElement("li");
+            li.innerHTML = `<span class="question-link" onclick="document.getElementById('query').value='${q}'; form.requestSubmit();">${q}</span>`;
+            prevQuestions.appendChild(li);
+          });
+        }
+      });
 
-es = None
-try:
-    if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
-        es = Elasticsearch(cloud_id=CLOUD_ID, basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD))
-        if not es.ping():
-            raise ValueError("Elastic unreachable")
-    else:
-        raise ValueError("Elastic env vars missing")
-except Exception as e:
-    print("Elastic error:", e)
-    sys.exit(1)
-
-# 🟡 قائمة الأسئلة السابقة (تحسين لمحركات البحث)
-PREVIOUS_QUESTIONS = [
-    "ما حكم شد الرحال إلى القبور؟",
-    "هل زيارة قبر النبي مشروعة؟",
-    "ما الفرق بين القبر والضريح؟",
-    "هل يجوز التوسل بالأموات؟",
-    "ما حكم المولد النبوي؟",
-    "أدلة تحريم السحر في الإسلام",
-    "من هي أسماء بنت عميس؟"
-]
-
-@app.route("/ask")
-def ask():
-    query = request.args.get("q", "").strip()
-    mode = request.args.get("mode", "default")
-    frm = int(request.args.get("from", 0))
-    size = int(request.args.get("size", 20))
-
-    if not query:
-        return jsonify({"error": "يرجى إدخال استعلام."}), 400
-
-    should = [
-        {"match_phrase": {"text_content": {"query": query, "boost": 100}}}
-    ]
-
-    es_query = {"bool": {"should": should, "minimum_should_match": 1}}
-
-    sources = []
-    try:
-        if mode != "ai_only":
-            res = es.search(index=INDEX_NAME, body={"query": es_query, "from": frm, "size": size, "sort": ["_score"]})
-            for hit in res["hits"]["hits"]:
-                doc = hit["_source"]
-                sources.append({
-                    "book_title": doc.get("book_title", ""),
-                    "author_name": doc.get("author_name", ""),
-                    "part_number": doc.get("part_number", ""),
-                    "page_number": doc.get("page_number", ""),
-                    "text_content": doc.get("text_content", ""),
-                    "score": hit.get("_score", 0),
-                    "id": hit.get("_id", "")  # لرابط دائم
-                })
-    except Exception as e:
-        return jsonify({"error": f"Search failure: {e}"}), 500
-
-    claude_answer = ""
-    if mode in ("default", "ai_only") and claude_client:
-        context = "\n\n".join([
-            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}" for s in sources
-        ])
-        prompt = f"أجب مباشرة عن السؤال:\n{query}\n" + (f"استنادًا إلى النصوص التالية:\n{context}" if context else "")
-        try:
-            msg = claude_client.messages.create(model="claude-3-5-sonnet-20241022", max_tokens=800, messages=[{"role": "user", "content": prompt}])
-            claude_answer = msg.content[0].text.strip()
-        except Exception as e:
-            claude_answer = f"Claude error: {e}"
-
-    return jsonify({
-        "claude_answer": claude_answer if mode != "full" else "",
-        "sources_retrieved": [] if mode == "ai_only" else sources,
-        "previous_questions": PREVIOUS_QUESTIONS
-    })
-
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      resultsDiv.innerHTML = "جاري البحث...";
+      const q = document.getElementById("query").value;
+      fetch(`/ask?q=${encodeURIComponent(q)}&mode=default`)
+        .then(r => r.json())
+        .then(data => {
+          resultsDiv.innerHTML = "";
+          if (data.claude_answer) {
+            const a = document.createElement("div");
+            a.innerHTML = `<h3>الجواب:</h3><p>${data.claude_answer}</p>`;
+            resultsDiv.appendChild(a);
+          }
+          if (data.sources_retrieved) {
+            data.sources_retrieved.forEach(item => {
+              const d = document.createElement("div");
+              d.className = "result";
+              d.innerHTML = `
+                <b>الكتاب:</b> ${item.book_title}<br>
+                <b>المؤلف:</b> ${item.author_name}<br>
+                <b>الجزء:</b> ${item.part_number} - <b>الصفحة:</b> ${item.page_number}<br>
+                <b>النص:</b> ${item.text_content}<br>
+                <a href="/view/${item.id}" target="_blank">رابط دائم</a>
+              `;
+              resultsDiv.appendChild(d);
+            });
+          }
+        });
+    });
+  </script>
+</body>
+</html>
