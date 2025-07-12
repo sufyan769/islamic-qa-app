@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>نظام البحث في الكتب الإسلامية</title>
+  <title>البحث في الكتب الإسلامية</title>
   <style>
     body { font-family: sans-serif; background: #f9f9f9; padding: 20px; color: #333; }
     input, button { font-size: 1.2em; padding: 10px; margin: 10px 0; width: 100%; }
     .result, .ai-answer { background: #fff; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 0 5px #ccc; }
+    .error { color: red; margin-top: 20px; }
     #progress-bar { width: 0%; height: 5px; background: green; transition: width 0.5s; }
   </style>
 </head>
@@ -19,20 +20,23 @@
   <div id="claude" class="ai-answer"></div>
   <div id="gemini" class="ai-answer"></div>
   <div id="results"></div>
+  <div id="error" class="error"></div>
 
 <script>
 function search() {
   const q = document.getElementById('query').value.trim();
   if (!q) return;
+
   document.getElementById('results').innerHTML = "";
   document.getElementById('claude').textContent = "";
   document.getElementById('gemini').textContent = "";
+  document.getElementById('error').textContent = "";
   updateProgress(0);
   simulateProgress();
 
   fetch(`/ask?q=${encodeURIComponent(q)}&mode=default`)
     .then(res => {
-      if (!res.ok) throw new Error("404");
+      if (!res.ok) throw new Error("HTTP status " + res.status);
       return res.json();
     })
     .then(data => {
@@ -49,9 +53,9 @@ function search() {
         document.getElementById('results').innerHTML = html;
       }
     })
-    .catch(() => {
+    .catch(err => {
+      document.getElementById('error').textContent = "تعذّر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط";
       updateProgress(0);
-      document.getElementById('results').innerHTML = "<b style='color:red'>تعذر تحميل النتائج، تحقق من الاتصال أو من صحة الرابط.</b>";
     });
 }
 
