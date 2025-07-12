@@ -1,4 +1,4 @@
-دfrom flask import Flask, request, jsonify
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError, AuthenticationException
