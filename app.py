@@ -1,4 +1,4 @@
-# app.py – تنفيذ التحسين الأول والثاني لاحقًا
+# app.py – تحسين البحث + روابط دائمة + أسئلة شائعة
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from elasticsearch import Elasticsearch
@@ -9,26 +9,29 @@ import os, sys, re
 app = Flask(__name__)
 CORS(app)
 
-# إعداد الاتصال بـ Elasticsearch
 CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
 INDEX_NAME = "islamic_texts"
 
-# مفتاح Claude
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
 claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
 
-# كلمات الوقف العربية الشائعة
 AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
 
-# تهيئة Elasticsearch
+PREVIOUS_QUESTIONS = [
+    "ما حكم شد الرحال إلى القبر النبوي؟",
+    "هل تجوز التوسل بالأنبياء؟",
+    "هل فتاوى اللجنة الدائمة موثوقة؟",
+    "ما الفرق بين الحال والتمييز؟",
+    "هل يجوز تقبيل المصحف؟"
+]
+
 es = None
 try:
     if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
         es = Elasticsearch(cloud_id=CLOUD_ID, basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD))
-        if not es.ping():
-            raise ValueError("Elastic unreachable")
+        if not es.ping(): raise ValueError("Elastic unreachable")
     else:
         raise ValueError("Elastic env vars missing")
 except Exception as e:
@@ -45,11 +48,7 @@ def ask():
     if not query:
         return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
-    # ✅ تحسين 1: استخدم match_phrase فقط لتفادي البحث المجزأ
-    should = [
-        {"match_phrase": {"text_content": {"query": query, "boost": 100}}}
-    ]
-
+    should = [{"match_phrase": {"text_content": {"query": query, "boost": 100}}}]
     es_query = {"bool": {"should": should, "minimum_should_match": 1}}
 
     sources = []
@@ -64,8 +63,9 @@ def ask():
                     "part_number": doc.get("part_number", ""),
                     "page_number": doc.get("page_number", ""),
                     "text_content": doc.get("text_content", ""),
-                    "score": hit.get("_score", 0),  # يمكن استخدامه لاحقًا لتحسين العرض
-                    "id": hit.get("_id", "")        # للتحسين 2 لاحقًا (رابط دائم)
+                    "score": hit.get("_score", 0),
+                    "id": hit.get("_id", ""),
+                    "permalink": f"/view/{hit.get('_id', '')}"
                 })
     except Exception as e:
         return jsonify({"error": f"Search failure: {e}"}), 500
@@ -73,18 +73,26 @@ def ask():
     claude_answer = ""
     if mode in ("default", "ai_only") and claude_client:
         context = "\n\n".join([
-            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}" for s in sources
+            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
+            for s in sources
         ])
-        prompt = f"أجب مباشرة عن السؤال:\n{query}\n" + (f"استنادًا إلى النصوص التالية:\n{context}" if context else "")
+        prompt = f"أجب مباشرة عن السؤال:\n{query}\n"
+        if context:
+            prompt += f"استنادًا إلى النصوص التالية:\n{context}"
         try:
-            msg = claude_client.messages.create(model="claude-3-5-sonnet-20241022", max_tokens=800, messages=[{"role": "user", "content": prompt}])
+            msg = claude_client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=800,
+                messages=[{"role": "user", "content": prompt}]
+            )
             claude_answer = msg.content[0].text.strip()
         except Exception as e:
             claude_answer = f"Claude error: {e}"
 
     return jsonify({
         "claude_answer": claude_answer if mode != "full" else "",
-        "sources_retrieved": [] if mode == "ai_only" else sources
+        "sources_retrieved": [] if mode == "ai_only" else sources,
+        "previous_questions": PREVIOUS_QUESTIONS
     })
 
 if __name__ == "__main__":
