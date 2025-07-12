@@ -1,4 +1,4 @@
-# app.py – بحث دقيق باستخدام match_phrase فقط دون ngram
+# app.py – تنفيذ التحسين الأول والثاني لاحقًا
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from elasticsearch import Elasticsearch
@@ -9,17 +9,17 @@ import os, sys, re
 app = Flask(__name__)
 CORS(app)
 
-# إعداد اتصال Elasticsearch
+# إعداد الاتصال بـ Elasticsearch
 CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
 INDEX_NAME = "islamic_texts"
 
-# مفاتيح نموذج Claude
+# مفتاح Claude
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
 claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
 
-# قائمة كلمات توقف عربية شائعة + كلمات قصيرة ≤2 حروف
+# كلمات الوقف العربية الشائعة
 AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
 
 # تهيئة Elasticsearch
@@ -45,16 +45,9 @@ def ask():
     if not query:
         return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
-    # استخراج الكلمات الجوهرية بعد إزالة الوقف والكلمات القصيرة
-    words = [w for w in re.findall(r"[\u0600-\u06FF]+", query) if len(w) > 2 and w not in AR_STOPWORDS]
-
-    # ✅ بحث دقيق دون ngram
+    # ✅ تحسين 1: استخدم match_phrase فقط لتفادي البحث المجزأ
     should = [
-        {"match_phrase": {"text_content": {"query": query, "boost": 100}}},
-        *[
-            {"match": {"text_content": {"query": w, "operator": "and", "boost": 10}}}
-            for w in words
-        ]
+        {"match_phrase": {"text_content": {"query": query, "boost": 100}}}
     ]
 
     es_query = {"bool": {"should": should, "minimum_should_match": 1}}
@@ -70,7 +63,9 @@ def ask():
                     "author_name": doc.get("author_name", ""),
                     "part_number": doc.get("part_number", ""),
                     "page_number": doc.get("page_number", ""),
-                    "text_content": doc.get("text_content", "")
+                    "text_content": doc.get("text_content", ""),
+                    "score": hit.get("_score", 0),  # يمكن استخدامه لاحقًا لتحسين العرض
+                    "id": hit.get("_id", "")        # للتحسين 2 لاحقًا (رابط دائم)
                 })
     except Exception as e:
         return jsonify({"error": f"Search failure: {e}"}), 500
