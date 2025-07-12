@@ -161,6 +161,7 @@ async function search() {
 
     updateProgress(100); // اكتمال التقدم
     document.getElementById('loadingSpinner').style.display = 'none'; // إخفاء مؤشر التحميل
+    stopSimulateProgress(); // إيقاف محاكاة التقدم بمجرد استلام البيانات
 
     if (data.error) {
       // عرض رسالة الخطأ من الخلفية
@@ -191,10 +192,12 @@ async function search() {
         // تقليم النص الطويل وعرض زر "عرض المزيد"
         const short = full.length > 300 ? full.slice(0, 300) + "..." : full;
         const id = Math.random().toString(36).substring(7); // معرف فريد لكل مصدر
+        // استخدام JSON.stringify لضمان هروب جميع الأحرف الخاصة بشكل صحيح
+        const escapedFullText = JSON.stringify(full);
         return `<div class='result'>
           <b>${doc.book_title}</b> - ${doc.author_name} <br>
           <small>الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}</small><br>
-          <div id='short-${id}'>${short} <span class='more' onclick="showFull('${id}', \`${full.replace(/`/g, '\\`')}\`)">عرض المزيد</span></div>
+          <div id='short-${id}'>${short} <span class='more' onclick="showFull('${id}', ${escapedFullText})">عرض المزيد</span></div>
         </div>`;
       }).join('');
       document.getElementById('results').innerHTML = html;
@@ -206,6 +209,7 @@ async function search() {
   } catch (err) {
     updateProgress(100);
     document.getElementById('loadingSpinner').style.display = 'none';
+    stopSimulateProgress(); // إيقاف محاكاة التقدم عند حدوث خطأ
     document.getElementById('results').innerHTML = "<p class='error'>تعذّر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط</p>";
     console.error("خطأ في جلب البيانات:", err);
   }
@@ -233,6 +237,8 @@ function updateProgress(val) {
  */
 function simulateProgress() {
   let val = 0;
+  // مسح أي فاصل زمني سابق لتجنب التداخل
+  stopSimulateProgress(); 
   const interval = setInterval(() => {
     if (val < 90) { // تتوقف عند 90% لتظهر اكتمالها عند استلام البيانات
       val += 5; // زيادة أقل لتقدم أكثر سلاسة
@@ -245,12 +251,13 @@ function simulateProgress() {
   document.getElementById('progress-bar').dataset.interval = interval;
 }
 
-// إضافة وظيفة لمسح الفاصل الزمني عند اكتمال التحميل
-// (يتم استدعاؤها في دالة search بعد استلام البيانات أو حدوث خطأ)
+/**
+ * توقف محاكاة تقدم شريط التحميل.
+ */
 function stopSimulateProgress() {
   const interval = document.getElementById('progress-bar').dataset.interval;
   if (interval) {
-    clearInterval(interval);
+    clearInterval(parseInt(interval)); // تحويل إلى عدد صحيح قبل المسح
     document.getElementById('progress-bar').dataset.interval = '';
   }
 }
