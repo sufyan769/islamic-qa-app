@@ -1,244 +1,208 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام البحث في الكتب الإسلامية</title>
-    <!-- تضمين Tailwind CSS لتحسين التصميم والاستجابة -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: #fdfdfd; /* خلفية بيضاء ناصعة */
-            padding: 20px;
-            color: #333;
-            display: flex;
-            flex-direction: column; /* لتكدس العناصر عموديا */
-            align-items: center;
-            min-height: 100vh;
-            /* تم إزالة font-size من body لكي يتم التحكم به على عناصر محددة */
-        }
-        .container {
-            background: #ffffff;
-            padding: 30px;
-            border-radius: 8px; /* حواف أقل استدارة */
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* ظل خفيف جداً */
-            max-width: 800px;
-            width: 100%;
-            margin-top: 20px;
-            border: 1px solid #eee; /* حدود خفيفة جداً */
-        }
-        h1 {
-            font-size: 28px; /* حجم خط ثابت لـ H1 */
-        }
-        h2 {
-            font-size: 24px; /* حجم خط ثابت لـ H2 */
-        }
-        input[type="text"] {
-            border: 1px solid #e0e0e0; /* حدود فاتحة جداً */
-            border-radius: 6px;
-            padding: 12px 15px;
-            font-size: 18px; /* حجم خط ثابت لحقول الإدخال */
-            width: 100%;
-            box-sizing: border-box;
-            transition: border-color 0.3s ease;
-        }
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #60a5fa; /* لون أزرق فاتح عند التركيز */
-        }
-        button {
-            background-color: #60a5fa; /* لون أزرق فاتح أساسي */
-            color: white;
-            padding: 12px 20px;
-            border-radius: 6px;
-            font-size: 18px; /* حجم خط ثابت للأزرار الرئيسية */
-            cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.2s ease;
-            width: 100%;
-            margin-top: 15px;
-            border: none;
-        }
-        button:hover {
-            background-color: #3b82f6; /* لون أزرق أغمق قليلاً عند التحويم */
-            transform: translateY(-1px); /* تأثير رفع أقل */
-        }
-        .result {
-            padding: 10px; /* تقليل المسافة الداخلية */
-            margin: 10px 0; /* تقليل المسافة الخارجية */
-            border-radius: 8px;
-            font-size: 16px; /* حجم الخط الأساسي للنتائج (سيتم تعديله بـ JS) */
-        }
-        .result b { /* للتحكم في حجم ولون عنوان الكتاب */
-            color: #1a202c; /* لون أغمق للعناوين */
-            font-size: 1.1em; /* حجم خط أصغر لعنوان الكتاب (نسبة إلى .result) */
-            display: block; /* لجعل الكتاب يأخذ سطرًا خاصًا به */
-            margin-bottom: 2px; /* مسافة صغيرة بعد عنوان الكتاب */
-        }
-        .result small { /* للمؤلف والجزء والصفحة */
-            font-size: 0.9em; /* خط أصغر للمؤلف والجزء والصفحة (نسبة إلى .result) */
-            color: #666; /* لون رمادي أفتح */
-            display: block; /* لجعل المؤلف يأخذ سطرًا خاصًا به */
-            margin-bottom: 8px; /* مسافة بعد المؤلف */
-        }
-        .result p { /* للنص الفعلي */
-            margin-top: 0; /* إزالة المسافة العلوية */
-            line-height: 1.5; /* تباعد أسطر معتدل */
-            text-indent: 0; /* إزالة المسافة البادئة */
-            display: -webkit-box; /* لعرض سطرين فقط */
-            -webkit-line-clamp: 2; /* تحديد سطرين */
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            text-overflow: ellipsis; /* إضافة علامة الحذف (...) */
-        }
-        .more {
-            color: #2563eb; /* أزرق أغمق للرابط "عرض المزيد" */
-            cursor: pointer;
-            display: inline-block;
-            margin-top: 10px;
-            font-weight: 600;
-            text-decoration: underline;
-        }
-        .hidden {
-            display: none !important; /* استخدام !important لضمان الإخفاء */
-        }
-        #progress-container {
-            width: 100%;
-            height: 4px; /* شريط تقدم أرفع */
-            background: #e0e0e0;
-            border-radius: 2px;
-            margin-top: 10px;
-            overflow: hidden;
-        }
-        #progress-bar {
-            width: 0%;
-            height: 100%;
-            background: linear-gradient(to right, #60a5fa, #3b82f6); /* تدرج لوني أزرق فاتح */
-            transition: width 0.5s ease-out;
-            border-radius: 2px;
-        }
-        .error {
-            color: #ef4444;
-            font-weight: bold;
-            text-align: center;
-            margin-top: 10px;
-        }
-        .loading-spinner {
-            border: 3px solid rgba(0, 0, 0, 0.1); /* حدود أرفع */
-            border-left-color: #60a5fa; /* لون أزرق فاتح */
-            border-radius: 50%;
-            width: 20px; /* حجم أصغر */
-            height: 20px;
-            animation: spin 1s linear infinite;
-            margin: 15px auto; /* مسافة أقل */
-            display: none; /* مخفي مبدئيا */
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        #searchStatusText {
-            text-align: center;
-            margin-top: 8px; /* مسافة أقل */
-            font-size: 0.85em; /* حجم خط أصغر قليلاً */
-            color: #666; /* لون رمادي أفتح */
-            min-height: 20px;
-        }
-        /* قسم الأسئلة الشائعة */
-        #popularQuestionsSection {
-            background-color: #f8f8f8; /* خلفية فاتحة للقسم */
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 25px;
-            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03);
-            font-size: 16px; /* حجم الخط الأساسي للقسم (سيتم تعديله بـ JS) */
-        }
-        #popularQuestionsSection h2 {
-            font-size: 1.5em; /* خط أكبر للعناوين (نسبة إلى #popularQuestionsSection) */
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 15px;
-            text-align: center;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 10px;
-        }
-        #popularQuestionsList {
-            list-style: none;
-            padding: 0;
-            display: grid; /* استخدام grid لتخطيط أفضل */
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* أعمدة مرنة */
-            gap: 10px; /* مسافة بين العناصر */
-        }
-        #popularQuestionsList li {
-            background-color: #ffffff;
-            border: 1px solid #eee;
-            border-radius: 5px;
-            padding: 12px 15px;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-            color: #444;
-            font-size: 0.95em; /* نسبة إلى #popularQuestionsSection */
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-        }
-        #popularQuestionsList li:hover {
-            background-color: #f0f0f0;
-            transform: translateY(-1px);
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-        }
-        #popularQuestionsList li::before {
-            content: "💡"; /* أيقونة خفيفة */
-            margin-right: 8px;
-            font-size: 1.1em;
-        }
-        /* أنماط أزرار التنقل بين النصوص */
-        .navigation-buttons {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 15px;
-            gap: 10px;
-        }
-        .navigation-buttons button {
-            background-color: #4CAF50; /* لون أخضر */
-            color: white;
-            padding: 8px 15px;
-            border-radius: 5px;
-            font-size: 15px; /* حجم خط ثابت لأزرار التنقل */
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            border: none;
-            width: auto; /* لكي لا يأخذ العرض الكامل */
-            margin-top: 0; /* إزالة المسافة العلوية الافتراضية للزر */
-        }
-        .navigation-buttons button:hover {
-            background-color: #45a049;
-        }
-        /* أنماط أزرار تكبير/تصغير الخط */
-        .font-size-controls {
-            display: flex;
-            justify-content: flex-end; /* محاذاة لليمين */
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .font-size-controls button {
-            background-color: #9CA3AF; /* لون رمادي هادئ */
-            color: white;
-            padding: 8px 15px;
-            border-radius: 5px;
-            font-size: 15px; /* حجم خط ثابت لأزرار تكبير/تصغير */
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            border: none;
-            width: auto;
-            margin-top: 0;
-        }
-        .font-size-controls button:hover {
-            background-color: #6B7280; /* رمادي أغمق عند التحويم */
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نظام البحث في الكتب الإسلامية</title>
+  <!-- تضمين Tailwind CSS لتحسين التصميم والاستجابة -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #fdfdfd; /* خلفية بيضاء ناصعة */
+      padding: 20px;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 8px; /* حواف أقل استدارة */
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* ظل خفيف جداً */
+      max-width: 800px;
+      width: 100%;
+      margin-top: 20px;
+      border: 1px solid #eee; /* حدود خفيفة جداً */
+    }
+    input[type="text"] {
+      border: 1px solid #e0e0e0; /* حدود فاتحة جداً */
+      border-radius: 6px;
+      padding: 12px 15px;
+      font-size: 1.1em;
+      width: 100%;
+      box-sizing: border-box;
+      transition: border-color 0.3s ease;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #60a5fa; /* لون أزرق فاتح عند التركيز */
+    }
+    button {
+      background-color: #60a5fa; /* لون أزرق فاتح أساسي */
+      color: white;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-size: 1.1em;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+      width: 100%;
+      margin-top: 15px;
+      border: none;
+    }
+    button:hover {
+      background-color: #3b82f6; /* لون أزرق أغمق قليلاً عند التحويم */
+      transform: translateY(-1px); /* تأثير رفع أقل */
+    }
+    .result {
+      background: #ffffff; /* خلفية بيضاء للنتائج */
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      /* حجم الخط الأساسي للنتائج (سيتم تعديله بـ JS) */
+      font-size: 16px; 
+    }
+    .result b { /* للتحكم في حجم ولون عنوان الكتاب */
+      color: #1a202c; /* لون أغمق للعناوين */
+      font-size: 1.1em; /* حجم خط أصغر لعنوان الكتاب (نسبة إلى .result) */
+      display: block; /* لجعل الكتاب يأخذ سطرًا خاصًا به */
+      margin-bottom: 2px; /* مسافة صغيرة بعد عنوان الكتاب */
+    }
+    .result small { /* للمؤلف والجزء والصفحة */
+      font-size: 0.9em; /* خط أصغر للمؤلف والجزء والصفحة (نسبة إلى .result) */
+      color: #666; /* لون رمادي أفتح */
+      display: block; /* لجعل المؤلف يأخذ سطرًا خاصًا به */
+      margin-bottom: 8px; /* مسافة بعد المؤلف */
+    }
+    .result p { /* للنص الفعلي */
+      margin-top: 0; /* إزالة المسافة العلوية */
+      line-height: 1.5; /* تباعد أسطر معتدل */
+      text-indent: 0; /* إزالة المسافة البادئة */
+      /* تم إزالة display: -webkit-box و -webkit-line-clamp هنا
+         لأن showFull سيتولى عرض النص بالكامل */
+      white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
+    }
+    .more {
+      color: #2563eb; /* أزرق أغمق للرابط "عرض المزيد" */
+      cursor: pointer;
+      display: inline-block;
+      margin-top: 10px;
+      font-weight: 600;
+      text-decoration: underline;
+    }
+    .hidden {
+      display: none !important; /* استخدام !important لضمان الإخفاء */
+    }
+    #progress-container {
+      width: 100%;
+      height: 4px; /* شريط تقدم أرفع */
+      background: #e0e0e0;
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(to right, #60a5fa, #3b82f6); /* تدرج لوني أزرق فاتح */
+      transition: width 0.5s ease-out;
+      border-radius: 2px;
+    }
+    .error {
+      color: #ef4444;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 10px;
+    }
+    .loading-spinner {
+      border: 3px solid rgba(0, 0, 0, 0.1); /* حدود أرفع */
+      border-left-color: #60a5fa; /* لون أزرق فاتح */
+      border-radius: 50%;
+      width: 20px; /* حجم أصغر */
+      height: 20px;
+      animation: spin 1s linear infinite;
+      margin: 15px auto; /* مسافة أقل */
+      display: none;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    #searchStatusText {
+      text-align: center;
+      margin-top: 8px; /* مسافة أقل */
+      font-size: 0.85em; /* حجم خط أصغر قليلاً */
+      color: #666; /* لون رمادي أفتح */
+      min-height: 20px;
+    }
+    #showMoreContainer {
+      text-align: center;
+      margin-top: 20px;
+    }
+    #showMoreButton {
+      background-color: #4CAF50; /* لون أخضر */
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+      border: none;
+      display: inline-block; /* لكي لا يأخذ العرض الكامل */
+      width: auto; /* لكي لا يأخذ العرض الكامل */
+    }
+    #showMoreButton:hover {
+      background-color: #45a049;
+      transform: translateY(-1px);
+    }
+    /* أنماط أزرار تكبير/تصغير الخط */
+    .font-size-controls {
+        display: flex;
+        justify-content: flex-end; /* محاذاة لليمين */
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    .font-size-controls button {
+        background-color: #9CA3AF; /* لون رمادي هادئ */
+        color: white;
+        padding: 8px 15px;
+        border-radius: 5px;
+        font-size: 15px; /* حجم خط ثابت لأزرار تكبير/تصغير */
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        border: none;
+        width: auto;
+        margin-top: 0;
+    }
+    .font-size-controls button:hover {
+        background-color: #6B7280; /* رمادي أغمق عند التحويم */
+    }
+    /* أنماط أزرار التنقل بين النصوص السياقية */
+    .navigation-buttons {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 15px;
+        gap: 10px;
+    }
+    .navigation-buttons button {
+        background-color: #4CAF50; /* لون أخضر */
+        color: white;
+        padding: 8px 15px;
+        border-radius: 5px;
+        font-size: 15px; /* حجم خط ثابت لأزرار التنقل */
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        border: none;
+        width: auto; /* لكي لا يأخذ العرض الكامل */
+        margin-top: 0; /* إزالة المسافة العلوية الافتراضية للزر */
+    }
+    .navigation-buttons button:hover {
+        background-color: #45a049;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -250,360 +214,172 @@
         <button id="decreaseFont">تصغير الخط</button>
     </div>
 
-    <div class="input-section">
-        <div class="input-field">
-            <input type="text" id="questionInput" placeholder="اكتب سؤالك هنا...">
-        </div>
-        <div class="input-field">
-            <input type="text" id="authorInput" placeholder="اسم المؤلف (اختياري)...">
-        </div>
-        <button id="askButton">ابحث</button>
-    </div>
-    
+    <input type="text" id="query" placeholder="ابحث عن النص ..." onkeydown="if(event.key==='Enter') search()">
+    <button onclick="search()">ابحث</button>
     <div id="progress-container"><div id="progress-bar"></div></div>
     <div class="loading-spinner" id="loadingSpinner"></div>
     <div id="searchStatusText"></div> <!-- العنصر الجديد لرسائل حالة البحث -->
-
-    <!-- منطقة عرض النتائج -->
+    
     <div id="results"></div>
 
-    <!-- قسم الأسئلة الشائعة (يظهر مبدئيًا) -->
-    <div id="popularQuestionsSection">
-        <h2>الأسئلة الشائعة</h2>
-        <ul id="popularQuestionsList">
-            <!-- سيتم تحميل الأسئلة هنا بواسطة JavaScript -->
-            <p class="text-center text-gray-500">جاري تحميل الأسئلة...</p>
-        </ul>
+    <!-- زر إظهار المزيد للتقسيم -->
+    <div id="showMoreContainer" class="hidden">
+      <button id="showMoreButton" onclick="search(true)">إظهار المزيد</button>
     </div>
   </div>
 
-<script type="module">
-// استيراد Firebase SDKs
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-// عنوان API الخلفية.
+<script>
+// عنوان API الخلفية. يمكن تغيير هذا إذا تم نشر الخلفية في مكان آخر.
 const API_BASE_URL = "https://islamic-qa-api-backend.onrender.com";
 
 // متغير لتخزين معرفات setTimeout لرسائل حالة البحث
 let searchStatusTimeouts = [];
 
-const questionInput = document.getElementById('questionInput');
-const authorInput = document.getElementById('authorInput');
-const askButton = document.getElementById('askButton');
-const resultsContainer = document.getElementById('results'); 
-const loadingSpinner = document.getElementById('loadingSpinner');
-const searchStatusText = document.getElementById('searchStatusText');
-
-const popularQuestionsSection = document.getElementById('popularQuestionsSection');
-const popularQuestionsList = document.getElementById('popularQuestionsList');
+// متغيرات للتقسيم (Pagination)
+let currentFrom = 0;
+const PAGE_SIZE = 20; // عدد النتائج التي يتم جلبها في كل مرة
 
 // عناصر أزرار تكبير/تصغير الخط
 const increaseFontButton = document.getElementById('increaseFont');
 const decreaseFontButton = document.getElementById('decreaseFont');
 
-let db;
-let auth;
-let userId;
-let isAuthReady = false;
-
-// تهيئة Firebase باستخدام الكائنات العالمية
-let firebaseConfig = {};
-try {
-    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-        firebaseConfig = JSON.parse(__firebase_config);
-    } else {
-        console.warn("Global __firebase_config not found or is empty. Using a placeholder config.");
-        // Placeholder config for local testing if __firebase_config is not provided by the environment
-        // يجب استبدال هذه القيم بقيم مشروع Firebase الخاص بك
-        firebaseConfig = {
-            apiKey: "YOUR_FIREBASE_API_KEY", 
-            authDomain: "your-project-id.firebaseapp.com",
-            projectId: "your-project-id",
-            storageBucket: "your-project-id.appspot.com",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID",
-            measurementId: "YOUR_MEASUREMENT_ID"
-        };
-    }
-} catch (e) {
-    console.error("Error parsing __firebase_config:", e);
-    console.warn("Using a fallback placeholder config for Firebase initialization.");
-    firebaseConfig = {
-        apiKey: "YOUR_FIREBASE_API_KEY", 
-        authDomain: "your-project-id.firebaseapp.com",
-        projectId: "your-project-id",
-        storageBucket: "your-project-id.appspot.com",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID",
-        measurementId: "YOUR_MEASUREMENT_ID"
-    };
-}
-
-console.log("Firebase config used:", firebaseConfig); // Log the config for debugging
-
-// تحقق من وجود projectId قبل التهيئة
-if (!firebaseConfig.projectId || firebaseConfig.projectId === "your-project-id") {
-    console.error("Firebase Error: 'projectId' is missing or is a placeholder in the configuration. Please ensure __firebase_config is properly set in your Render environment variables.");
-    // يمكنك عرض رسالة خطأ للمستخدم هنا إذا أردت
-    // document.body.innerHTML = "<p class='error'>خطأ في تهيئة التطبيق: يرجى الاتصال بالمسؤول.</p>";
-    // return; // إيقاف تنفيذ السكربت إذا كانت التهيئة غير صحيحة
-}
-
-const app = initializeApp(firebaseConfig);
-db = getFirestore(app);
-auth = getAuth(app);
-
-// تسجيل الدخول وتحديد userId
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        userId = user.uid;
-        console.log("Firebase authenticated. User ID:", userId);
-    } else {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            try {
-                const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
-                userId = userCredential.user.uid;
-                console.log("Signed in with custom token. User ID:", userId);
-            } catch (error) {
-                console.error("Error signing in with custom token:", error);
-                try {
-                    const userCredential = await signInAnonymously(auth);
-                    userId = userCredential.user.uid;
-                    console.log("Signed in anonymously. User ID:", userId);
-                } catch (anonError) {
-                    console.error("Error signing in anonymously:", anonError);
-                    userId = crypto.randomUUID();
-                    console.log("Using random User ID (fallback):", userId);
-                }
-            }
-        } else {
-            try {
-                const userCredential = await signInAnonymously(auth);
-                userId = userCredential.user.uid;
-                console.log("Signed in anonymously. User ID:", userId);
-            } catch (anonError) {
-                console.error("Error signing in anonymously:", anonError);
-                userId = crypto.randomUUID();
-                console.log("Using random User ID (fallback):", userId);
-            }
-        }
-    }
-    isAuthReady = true;
-    loadPopularQuestions(); // تحميل الأسئلة بعد التأكد من جاهزية المصادقة
-});
-
+// متغيرات حجم الخط
+let currentResultsFontSize = 16; // حجم الخط الأساسي للنتائج
+const FONT_SIZE_STEP = 2; // خطوة التغيير
+const MIN_FONT_SIZE = 12;
+const MAX_FONT_SIZE = 24;
 
 /**
- * دالة لتمييز كلمات البحث في النص.
- * @param {string} text - النص الأصلي.
- * @param {string} query - استعلام البحث.
- * @returns {string} النص مع الكلمات المميزة.
+ * دالة لتحديث حجم الخط لعناصر النتائج.
  */
-function highlightText(text, query) {
-    if (!query || !text) return text;
-    const queryWords = query.split(/\s+/).filter(word => word.length > 0);
-    if (queryWords.length === 0) return text;
-
-    // إنشاء تعبير عادي (regex) للبحث عن أي من الكلمات المفتاحية
-    const regex = new RegExp(queryWords.map(word => {
-        // الهروب من الأحرف الخاصة في الكلمات المفتاحية
-        return word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }).join('|'), 'gi'); // 'gi' للبحث العام وغير الحساس لحالة الأحرف
-
-    return text.replace(regex, (match) => `<span class="highlight">${match}</span>`);
-}
-
-/**
- * دالة لحفظ السؤال في Firestore.
- * @param {string} questionText - نص السؤال المراد حفظه.
- */
-async function saveQuestionToFirestore(questionText) {
-    if (!isAuthReady || !db || !userId) {
-        console.warn("Firebase not ready or User ID not available for saving question.");
-        return; // لا تحاول الحفظ إذا لم تكن Firebase جاهزة
-    }
-    try {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/asked_questions`);
-        await addDoc(questionsCollectionRef, {
-            question: questionText,
-            timestamp: new Date(), // استخدام تاريخ ووقت العميل
-            userId: userId
-        });
-        console.log("Question saved to Firestore:", questionText);
-    } catch (e) {
-        console.error("Error adding document to Firestore: ", e);
-        // لا نرجع هنا، لنسمح لعملية البحث بالاستمرار حتى لو فشل حفظ السؤال
-    }
-}
-
-/**
- * دالة لتحميل وعرض الأسئلة الشائعة من Firestore.
- */
-async function loadPopularQuestions() {
-    if (!isAuthReady || !db) {
-        console.warn("Firebase not ready for loading questions.");
-        popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">فشل تحميل الأسئلة الشائعة (Firebase غير جاهز).</p>';
-        return;
-    }
-    popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">جاري تحميل الأسئلة...</p>';
-    try {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/asked_questions`);
-        const q = query(questionsCollectionRef, orderBy("timestamp", "desc"), limit(10)); // جلب أحدث 10 أسئلة
-        const querySnapshot = await getDocs(q);
-
-        popularQuestionsList.innerHTML = ''; // مسح رسالة التحميل
-        if (querySnapshot.empty) {
-            popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">لا توجد أسئلة سابقة.</p>';
-        } else {
-            querySnapshot.forEach((doc) => {
-                const questionData = doc.data();
-                const listItem = document.createElement('li');
-                listItem.textContent = questionData.question;
-                listItem.title = `سؤال طرحه: ${questionData.userId || 'مجهول'}`; // عرض معرف المستخدم عند التحويم
-                listItem.addEventListener('click', () => {
-                    questionInput.value = questionData.question;
-                    askQuestion(); // محاكاة النقر على زر "ابحث"
-                });
-                popularQuestionsList.appendChild(listItem);
-            });
-        }
-    } catch (e) {
-        console.error("Error loading popular questions from Firestore: ", e);
-        popularQuestionsList.innerHTML = '<p class="error-message">فشل تحميل الأسئلة الشائعة.</p>';
-    }
+function updateTextFontSizes() {
+    document.querySelectorAll('.result').forEach(resultDiv => {
+        resultDiv.style.fontSize = `${currentResultsFontSize}px`;
+    });
 }
 
 /**
  * تبدأ عملية البحث عند إدخال المستخدم لاستعلام.
  * تقوم بمسح النتائج السابقة، وعرض مؤشرات التحميل، وإجراء استدعاء API.
+ * @param {boolean} append - إذا كانت true، يتم إضافة النتائج الجديدة إلى الموجودة.
  */
-async function askQuestion() {
-  const question = questionInput.value.trim();
-  const author = authorInput.value.trim();
-
-  if (!question && !author) {
-    resultsContainer.innerHTML = "<p class='error'>الرجاء إدخال سؤال أو اسم مؤلف.</p>";
-    popularQuestionsSection.classList.remove('hidden'); // أعد إظهار الأسئلة الشائعة
+async function search(append = false) {
+  const q = document.getElementById('query').value.trim();
+  if (!q) {
+    // يمكن إضافة رسالة خطأ للمستخدم هنا إذا كان الاستعلام فارغًا
     return;
   }
 
-  // إخفاء قسم الأسئلة الشائعة عند طرح سؤال جديد
-  popularQuestionsSection.classList.add('hidden'); 
-
-  // حفظ السؤال إلى Firestore قبل إرسال الطلب إلى الواجهة الخلفية
-  if (question) { // فقط إذا كان هناك سؤال مكتوب
-    await saveQuestionToFirestore(question); // لا نعود هنا، نسمح للبحث بالاستمرار
+  // مسح النتائج السابقة فقط إذا كان بحثًا جديدًا (وليس إضافة المزيد)
+  if (!append) {
+    document.getElementById('results').innerHTML = "";
+    currentFrom = 0; // إعادة تعيين الفهرس للبحث الجديد
+    document.getElementById('showMoreContainer').classList.add('hidden'); // إخفاء زر "إظهار المزيد"
   }
-
-  // إعادة تعيين منطقة النتائج
-  resultsContainer.innerHTML = "";
-  askButton.disabled = true;
 
   // إظهار شريط التقدم ومؤشر التحميل
   updateProgress(0);
-  loadingSpinner.style.display = 'block';
+  document.getElementById('loadingSpinner').style.display = 'block';
   simulateProgress(); // بدء محاكاة التقدم
   updateSearchStatusText(); // بدء تحديث رسائل حالة البحث
 
-  let apiUrl = `${API_BASE_URL}/ask?`;
-  const params = [];
-
-  if (question) {
-    params.push(`q=${encodeURIComponent(question)}`);
-  }
-  if (author) {
-    params.push(`author=${encodeURIComponent(author)}`);
-  }
-  apiUrl += params.join('&');
-
   try {
-    const response = await fetch(apiUrl);
+    // تضمين معلمات 'from' و 'size' لتقسيم النتائج
+    const response = await fetch(`${API_BASE_URL}/ask?q=${encodeURIComponent(q)}&mode=full&from=${currentFrom}&size=${PAGE_SIZE}`);
     const data = await response.json();
 
     updateProgress(100); // اكتمال التقدم
-    loadingSpinner.style.display = 'none'; // إخفاء مؤشر التحميل
+    document.getElementById('loadingSpinner').style.display = 'none'; // إخفاء مؤشر التحميل
     stopSimulateProgress(); // إيقاف محاكاة التقدم بمجرد استلام البيانات
     clearSearchStatusText(); // مسح رسائل حالة البحث عند الانتهاء
 
     if (data.error) {
       // عرض رسالة الخطأ من الخلفية
-      resultsContainer.innerHTML = `<p class='error'>خطأ: ${data.error}</p>`;
+      document.getElementById('results').innerHTML = `<p class='error'>خطأ: ${data.error}</p>`;
+      document.getElementById('showMoreContainer').classList.add('hidden'); // إخفاء الزر عند الخطأ
       return;
     }
 
     // عرض المصادر المسترجعة
     if (data.sources_retrieved && data.sources_retrieved.length > 0) {
-      const resultsHtml = data.sources_retrieved.map(doc => {
+      const newResultsHtml = data.sources_retrieved.map(doc => {
         const full = doc.text_content;
-        const highlightedFull = highlightText(full, question); // تمييز الكلمات
-        const lines = highlightedFull.split('\n'); // تقسيم النص إلى أسطر
+        const lines = full.split('\n'); // تقسيم النص إلى أسطر
         let short = '';
 
-        // منطق تقليم النص: سطرين أو 250 حرف كحد أقصى إذا كان سطرًا واحدًا
+        // منطق تقليم النص: سطرين أو 200 حرف كحد أقصى إذا كان سطرًا واحدًا
         if (lines.length >= 2) {
           short = lines.slice(0, 2).join('<br>'); // أخذ أول سطرين وربطهما بفاصل سطر HTML
-          if (lines.length > 2 || (lines.length === 2 && lines[1].length > 0)) { 
-             const combinedTwoLinesLength = lines[0].length + (lines[1] ? lines[1].length : 0);
-             if (full.length > combinedTwoLinesLength + 50) { 
-                 short += '...'; 
-             }
+          if (lines.length > 2) {
+            short += '...'; // إضافة ثلاث نقاط إذا كان هناك أكثر من سطرين
           }
         } else {
-          short = highlightedFull.slice(0, 250); 
-          if (highlightedFull.length > 250) {
-            short += '...'; 
+          // إذا كان النص أقل من سطرين (أي سطر واحد طويل)، قم بتقليمه بالأحرف
+          short = full.slice(0, 200); // خذ أول 200 حرف
+          if (full.length > 200) {
+            short += '...'; // إضافة ثلاث نقاط إذا كان النص أطول من 200 حرف
           }
         }
         
         const id = Math.random().toString(36).substring(7); // معرف فريد لكل مصدر
         
         // تخزين النص الكامل في سمة بيانات (data-full-text)
+        // وتخزين بيانات الكتاب للملاحة السياقية
         return `<div class='result'>
           <b>الكتاب:</b> ${doc.book_title || 'غير معروف'} <br>
-          <small>المؤلف: ${doc.author_name || 'غير معروف'}، الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}</small><br>
-          <p id='short-${id}' data-full-text="${encodeURIComponent(full)}" 
-             data-book-title="${encodeURIComponent(doc.book_title || '')}"
-             data-author-name="${encodeURIComponent(doc.author_name || '')}"
-             data-part-number="${encodeURIComponent(doc.part_number || '')}"
-             data-page-number="${encodeURIComponent(doc.page_number || '')}">
-             ${short} 
-             ${full.length > short.length ? `<span class='more' onclick="showFull('${id}', '${encodeURIComponent(highlightedFull)}')">عرض المزيد</span>` : ''}
-          </p>
+          <b>المؤلف:</b> ${doc.author_name || 'غير معروف'} <br>
+          <small>الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}</small><br>
+          <div id='short-${id}' 
+               data-full-text="${encodeURIComponent(full)}"
+               data-book-title="${encodeURIComponent(doc.book_title || '')}"
+               data-author-name="${encodeURIComponent(doc.author_name || '')}"
+               data-part-number="${encodeURIComponent(doc.part_number || '')}"
+               data-page-number="${encodeURIComponent(doc.page_number || '')}">
+               ${short} 
+               <span class='more' onclick="showFull('${id}')">عرض المزيد</span>
+          </div>
         </div>`;
       }).join('');
 
-      resultsContainer.innerHTML = resultsHtml;
+      // إضافة النتائج الجديدة إلى النتائج الموجودة
+      document.getElementById('results').insertAdjacentHTML('beforeend', newResultsHtml);
+
+      // تحديث الفهرس للطلب التالي
+      currentFrom += data.sources_retrieved.length;
+
+      // إظهار أو إخفاء زر "إظهار المزيد"
+      if (data.sources_retrieved.length < PAGE_SIZE) {
+        document.getElementById('showMoreContainer').classList.add('hidden'); // لا توجد المزيد من النتائج
+      } else {
+        document.getElementById('showMoreContainer').classList.remove('hidden'); // توجد المزيد من النتائج
+      }
       updateTextFontSizes(); // تطبيق حجم الخط بعد تحميل النتائج
 
-    } else { // لم يتم العثور على نتائج
-      resultsContainer.innerHTML = "<p class='error'>لم يتم العثور على نتائج لاستعلامك.</p>";
+    } else if (currentFrom === 0) { // لم يتم العثور على نتائج في البحث الأولي
+      document.getElementById('results').innerHTML = "<p class='error'>لم يتم العثور على نتائج لاستعلامك.</p>";
+      document.getElementById('showMoreContainer').classList.add('hidden');
+    } else { // لا توجد المزيد من النتائج لإضافتها
+        document.getElementById('showMoreContainer').classList.add('hidden');
     }
 
   } catch (err) {
     updateProgress(100);
-    loadingSpinner.style.display = 'none';
-    stopSimulateProgress(); 
-    clearSearchStatusText(); 
-    resultsContainer.innerHTML = "<p class='error'>تعذّر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط</p>";
+    document.getElementById('loadingSpinner').style.display = 'none';
+    stopSimulateProgress(); // إيقاف محاكاة التقدم عند حدوث خطأ
+    clearSearchStatusText(); // مسح رسائل حالة البحث عند حدوث خطأ
+    document.getElementById('results').innerHTML = "<p class='error'>تعذّر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط</p>";
+    document.getElementById('showMoreContainer').classList.add('hidden'); // إخفاء الزر عند الخطأ
     console.error("خطأ في جلب البيانات:", err);
-  } finally {
-    askButton.disabled = false;
-    loadPopularQuestions(); 
   }
 }
 
 /**
  * تعرض النص الكامل للمصدر عند النقر على "عرض المزيد" وتضيف أزرار التنقل.
  * @param {string} id - معرف العنصر الذي يحتوي على النص المختصر.
- * @param {string} encodedHighlightedFullText - النص الكامل المميز والمشفر.
  */
-async function showFull(id, encodedHighlightedFullText) {
+async function showFull(id) {
   const shortElement = document.getElementById('short-' + id);
-  const fullText = decodeURIComponent(encodedHighlightedFullText); 
+  const fullText = decodeURIComponent(shortElement.dataset.fullText);
   
   const bookTitle = decodeURIComponent(shortElement.dataset.bookTitle);
   const authorName = decodeURIComponent(shortElement.dataset.authorName);
@@ -612,11 +388,17 @@ async function showFull(id, encodedHighlightedFullText) {
 
   shortElement.innerHTML = fullText; // عرض النص الكامل
 
+  // إزالة أي أزرار تنقل سابقة لتجنب التكرار
+  const existingNavButtons = shortElement.nextElementSibling;
+  if (existingNavButtons && existingNavButtons.classList.contains('navigation-buttons')) {
+      existingNavButtons.remove();
+  }
+
   // إضافة أزرار التنقل
   const navButtonsHtml = `
     <div class="navigation-buttons">
-      <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'prev', '${id}')">النص السابق</button>
-      <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'next', '${id}')">النص التالي</button>
+      <button onclick="getSequentialText('${encodeURIComponent(bookTitle)}', '${encodeURIComponent(authorName)}', '${encodeURIComponent(partNumber)}', '${encodeURIComponent(pageNumber)}', 'prev', '${id}')">النص السابق</button>
+      <button onclick="getSequentialText('${encodeURIComponent(bookTitle)}', '${encodeURIComponent(authorName)}', '${encodeURIComponent(partNumber)}', '${encodeURIComponent(pageNumber)}', 'next', '${id}')">النص التالي</button>
     </div>
   `;
   // إضافة الأزرار بعد النص الكامل مباشرة
@@ -628,7 +410,7 @@ async function showFull(id, encodedHighlightedFullText) {
  * @param {string} bookTitle - عنوان الكتاب.
  * @param {string} authorName - اسم المؤلف.
  * @param {string} currentPartNumber - رقم الجزء الحالي.
- * @param {string} current_page_number - رقم الصفحة الحالي.
+ * @param {string} currentPageNumber - رقم الصفحة الحالي.
  * @param {string} direction - 'next' أو 'prev'.
  * @param {string} originalElementId - معرف العنصر الأصلي لتحديثه.
  */
@@ -647,11 +429,11 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
 
     try {
         const apiUrl = `${API_BASE_URL}/get_contextual_text?` +
-                       `book_title=${encodeURIComponent(bookTitle)}&` +
-                       `author_name=${encodeURIComponent(authorName)}&` +
-                       `current_part_number=${encodeURIComponent(currentPartNumber)}&` +
-                       `current_page_number=${encodeURIComponent(currentPageNumber)}&` +
-                       `direction=${encodeURIComponent(direction)}`;
+                       `book_title=${bookTitle}&` +
+                       `author_name=${authorName}&` +
+                       `current_part_number=${currentPartNumber}&` +
+                       `current_page_number=${currentPageNumber}&` +
+                       `direction=${direction}`;
         
         const response = await fetch(apiUrl);
         const data = await response.json();
@@ -667,14 +449,16 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             currentTextElement.innerHTML = newText;
             
             // تحديث سمات البيانات في العنصر لتعكس النص الجديد
+            currentTextElement.dataset.fullText = encodeURIComponent(newText); // تحديث النص الكامل المشفر
             currentTextElement.dataset.bookTitle = encodeURIComponent(newBookTitle);
             currentTextElement.dataset.authorName = encodeURIComponent(newAuthorName);
             currentTextElement.dataset.partNumber = encodeURIComponent(newPartNumber);
             currentTextElement.dataset.pageNumber = encodeURIComponent(newPageNumber);
 
             // تحديث معلومات المصدر في الواجهة
-            parentResultDiv.querySelector('b').textContent = `الكتاب: ${newBookTitle || 'غير معروف'}`;
-            parentResultDiv.querySelector('small').textContent = `المؤلف: ${newAuthorName || 'غير معروف'}، الجزء: ${newPartNumber || 'غير متوفر'}، الصفحة: ${newPageNumber || 'غير متوفر'}`;
+            parentResultDiv.querySelector('b:nth-of-type(1)').textContent = `الكتاب: ${decodeURIComponent(newBookTitle) || 'غير معروف'}`;
+            parentResultDiv.querySelector('b:nth-of-type(2)').textContent = `المؤلف: ${decodeURIComponent(newAuthorName) || 'غير معروف'}`;
+            parentResultDiv.querySelector('small').textContent = `الجزء: ${decodeURIComponent(newPartNumber) || 'غير متوفر'}، الصفحة: ${decodeURIComponent(newPageNumber) || 'غير متوفر'}`;
 
 
             // إعادة إضافة أزرار التنقل للنص الجديد
@@ -688,10 +472,26 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
 
         } else {
             currentTextElement.innerHTML = `<p class='error'>${data.message || data.error || 'لم يتم العثور على نص في هذا الاتجاه.'}</p>`;
+            // إعادة إضافة الأزرار حتى لو لم يتم العثور على نص جديد
+            const newNavButtonsHtml = `
+                <div class="navigation-buttons">
+                  <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'prev', '${originalElementId}')">النص السابق</button>
+                  <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'next', '${originalElementId}')">النص التالي</button>
+                </div>
+            `;
+            currentTextElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
         }
     } catch (error) {
         console.error('خطأ في جلب النص السياقي:', error);
         currentTextElement.innerHTML = `<p class='error'>فشل تحميل النص: ${error.message || 'خطأ في الاتصال.'}</p>`;
+        // إعادة إضافة الأزرار حتى لو حدث خطأ
+        const newNavButtonsHtml = `
+            <div class="navigation-buttons">
+              <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'prev', '${originalElementId}')">النص السابق</button>
+              <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'next', '${originalElementId}')">النص التالي</button>
+            </div>
+        `;
+        currentTextElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
     }
 }
 
@@ -768,50 +568,21 @@ function clearSearchStatusText() {
 }
 
 // ------------------------------------------------------------------
-// وظائف تكبير وتصغير الخط
-let currentResultsFontSize = 16; // حجم الخط الأساسي للنتائج
-let currentPopularQuestionsFontSize = 16; // حجم الخط الأساسي للأسئلة الشائعة
-const FONT_SIZE_STEP = 2; // خطوة التغيير
-const MIN_FONT_SIZE = 12;
-const MAX_FONT_SIZE = 24;
-
-function updateTextFontSizes() {
-    // تحديث حجم الخط لعناصر النتائج
-    document.querySelectorAll('.result').forEach(resultDiv => {
-        resultDiv.style.fontSize = `${currentResultsFontSize}px`;
-    });
-    // تحديث حجم الخط لقسم الأسئلة الشائعة
-    const popularQuestionsSection = document.getElementById('popularQuestionsSection');
-    if (popularQuestionsSection) {
-        popularQuestionsSection.style.fontSize = `${currentPopularQuestionsFontSize}px`;
-    }
-}
-
-increaseFontButton.addEventListener('click', () => {
-    if (currentResultsFontSize < MAX_FONT_SIZE) {
-        currentResultsFontSize += FONT_SIZE_STEP;
-        currentPopularQuestionsFontSize += FONT_SIZE_STEP;
-        updateTextFontSizes();
-    }
-});
-
-decreaseFontButton.addEventListener('click', () => {
-    if (currentResultsFontSize > MIN_FONT_SIZE) {
-        currentResultsFontSize -= FONT_SIZE_STEP;
-        currentPopularQuestionsFontSize -= FONT_SIZE_STEP;
-        updateTextFontSizes();
-    }
-});
-
-// ------------------------------------------------------------------
 // ربط مستمعي الأحداث بعد تحميل DOM
 document.addEventListener('DOMContentLoaded', () => {
-    askButton.addEventListener('click', askQuestion);
-    questionInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') askQuestion();
+    // ربط أزرار تكبير/تصغير الخط
+    increaseFontButton.addEventListener('click', () => {
+        if (currentResultsFontSize < MAX_FONT_SIZE) {
+            currentResultsFontSize += FONT_SIZE_STEP;
+            updateTextFontSizes();
+        }
     });
-    authorInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') askQuestion();
+
+    decreaseFontButton.addEventListener('click', () => {
+        if (currentResultsFontSize > MIN_FONT_SIZE) {
+            currentResultsFontSize -= FONT_SIZE_STEP;
+            updateTextFontSizes();
+        }
     });
 
     // تطبيق حجم الخط الأولي عند تحميل الصفحة
