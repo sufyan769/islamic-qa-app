@@ -17,7 +17,7 @@
             flex-direction: column; /* لتكدس العناصر عموديا */
             align-items: center;
             min-height: 100vh;
-            font-size: 16px; /* حجم الخط الأساسي الافتراضي */
+            /* تم إزالة font-size من body لكي يتم التحكم به على عناصر محددة */
         }
         .container {
             background: #ffffff;
@@ -59,13 +59,10 @@
             transform: translateY(-1px); /* تأثير رفع أقل */
         }
         .result {
-            /* تم إزالة الخلفية البيضاء لجعلها تندمج مع الخلفية الرئيسية */
             padding: 10px; /* تقليل المسافة الداخلية */
             margin: 10px 0; /* تقليل المسافة الخارجية */
             border-radius: 8px;
-            /* تم إزالة الظل والحدود لجعل التصميم أبسط وتجنب التداخل */
-            /* box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03); */
-            /* border: 1px solid #f0f0f0; */
+            font-size: 16px; /* حجم الخط الأساسي للنتائج */
         }
         .result b { /* للتحكم في حجم ولون عنوان الكتاب */
             color: #1a202c; /* لون أغمق للعناوين */
@@ -150,6 +147,7 @@
             padding: 20px;
             margin-top: 25px;
             box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03);
+            font-size: 16px; /* حجم الخط الأساسي للقسم */
         }
         #popularQuestionsSection h2 {
             font-size: 1.5em; /* خط أكبر للعناوين */
@@ -337,6 +335,14 @@ try {
 }
 
 console.log("Firebase config used:", firebaseConfig); // Log the config for debugging
+
+// تحقق من وجود projectId قبل التهيئة
+if (!firebaseConfig.projectId || firebaseConfig.projectId === "your-project-id") {
+    console.error("Firebase Error: 'projectId' is missing or is a placeholder in the configuration. Please ensure __firebase_config is properly set in your Render environment variables.");
+    // يمكنك عرض رسالة خطأ للمستخدم هنا إذا أردت
+    // document.body.innerHTML = "<p class='error'>خطأ في تهيئة التطبيق: يرجى الاتصال بالمسؤول.</p>";
+    // return; // إيقاف تنفيذ السكربت إذا كانت التهيئة غير صحيحة
+}
 
 const app = initializeApp(firebaseConfig);
 db = getFirestore(app);
@@ -753,26 +759,37 @@ function clearSearchStatusText() {
 
 // ------------------------------------------------------------------
 // وظائف تكبير وتصغير الخط
-let currentFontSize = 16; // حجم الخط الأساسي بالبكسل
+let currentResultsFontSize = 16; // حجم الخط الأساسي للنتائج
+let currentPopularQuestionsFontSize = 16; // حجم الخط الأساسي للأسئلة الشائعة
 const FONT_SIZE_STEP = 2; // خطوة التغيير
 const MIN_FONT_SIZE = 12;
 const MAX_FONT_SIZE = 24;
 
-function updateBodyFontSize() {
-    document.body.style.fontSize = `${currentFontSize}px`;
+function updateTextFontSizes() {
+    // تحديث حجم الخط لعناصر النتائج
+    document.querySelectorAll('.result').forEach(resultDiv => {
+        resultDiv.style.fontSize = `${currentResultsFontSize}px`;
+    });
+    // تحديث حجم الخط لقسم الأسئلة الشائعة
+    const popularQuestionsSection = document.getElementById('popularQuestionsSection');
+    if (popularQuestionsSection) {
+        popularQuestionsSection.style.fontSize = `${currentPopularQuestionsFontSize}px`;
+    }
 }
 
 increaseFontButton.addEventListener('click', () => {
-    if (currentFontSize < MAX_FONT_SIZE) {
-        currentFontSize += FONT_SIZE_STEP;
-        updateBodyFontSize();
+    if (currentResultsFontSize < MAX_FONT_SIZE) {
+        currentResultsFontSize += FONT_SIZE_STEP;
+        currentPopularQuestionsFontSize += FONT_SIZE_STEP;
+        updateTextFontSizes();
     }
 });
 
 decreaseFontButton.addEventListener('click', () => {
-    if (currentFontSize > MIN_FONT_SIZE) {
-        currentFontSize -= FONT_SIZE_STEP;
-        updateBodyFontSize();
+    if (currentResultsFontSize > MIN_FONT_SIZE) {
+        currentResultsFontSize -= FONT_SIZE_STEP;
+        currentPopularQuestionsFontSize -= FONT_SIZE_STEP;
+        updateTextFontSizes();
     }
 });
 
@@ -786,6 +803,9 @@ document.addEventListener('DOMContentLoaded', () => {
     authorInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') askQuestion();
     });
+
+    // تطبيق حجم الخط الأولي عند تحميل الصفحة
+    updateTextFontSizes();
 });
 
 </script>
