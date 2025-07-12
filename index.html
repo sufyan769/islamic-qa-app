@@ -113,6 +113,13 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+    #searchStatusText {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 0.9em;
+      color: #555;
+      min-height: 20px; /* لضمان عدم حدوث CLS */
+    }
   </style>
 </head>
 <body>
@@ -122,6 +129,7 @@
     <button onclick="search()">ابحث</button>
     <div id="progress-container"><div id="progress-bar"></div></div>
     <div class="loading-spinner" id="loadingSpinner"></div>
+    <div id="searchStatusText"></div> <!-- العنصر الجديد لرسائل حالة البحث -->
 
     <div id="claude" class="ai-answer hidden"></div>
     <div id="gemini" class="ai-answer hidden"></div>
@@ -131,6 +139,9 @@
 <script>
 // عنوان API الخلفية. يمكن تغيير هذا إذا تم نشر الخلفية في مكان آخر.
 const API_BASE_URL = "https://islamic-qa-api-backend.onrender.com";
+
+// متغير لتخزين معرفات setTimeout لرسائل حالة البحث
+let searchStatusTimeouts = [];
 
 /**
  * تبدأ عملية البحث عند إدخال المستخدم لاستعلام.
@@ -154,6 +165,7 @@ async function search() {
   updateProgress(0);
   document.getElementById('loadingSpinner').style.display = 'block';
   simulateProgress(); // بدء محاكاة التقدم
+  updateSearchStatusText(); // بدء تحديث رسائل حالة البحث
 
   try {
     const response = await fetch(`${API_BASE_URL}/ask?q=${encodeURIComponent(q)}&mode=default`);
@@ -162,6 +174,7 @@ async function search() {
     updateProgress(100); // اكتمال التقدم
     document.getElementById('loadingSpinner').style.display = 'none'; // إخفاء مؤشر التحميل
     stopSimulateProgress(); // إيقاف محاكاة التقدم بمجرد استلام البيانات
+    clearSearchStatusText(); // مسح رسائل حالة البحث عند الانتهاء
 
     if (data.error) {
       // عرض رسالة الخطأ من الخلفية
@@ -210,6 +223,7 @@ async function search() {
     updateProgress(100);
     document.getElementById('loadingSpinner').style.display = 'none';
     stopSimulateProgress(); // إيقاف محاكاة التقدم عند حدوث خطأ
+    clearSearchStatusText(); // مسح رسائل حالة البحث عند حدوث خطأ
     document.getElementById('results').innerHTML = "<p class='error'>تعذّر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط</p>";
     console.error("خطأ في جلب البيانات:", err);
   }
@@ -260,6 +274,39 @@ function stopSimulateProgress() {
     clearInterval(parseInt(interval)); // تحويل إلى عدد صحيح قبل المسح
     document.getElementById('progress-bar').dataset.interval = '';
   }
+}
+
+/**
+ * تحديث رسائل حالة البحث ديناميكياً.
+ */
+function updateSearchStatusText() {
+  const statusElement = document.getElementById('searchStatusText');
+  // مسح أي مؤقتات سابقة
+  searchStatusTimeouts.forEach(clearTimeout);
+  searchStatusTimeouts = [];
+
+  statusElement.textContent = "جاري البحث في المكتبة...";
+
+  searchStatusTimeouts.push(setTimeout(() => {
+    statusElement.textContent = "البحث في 7358 كتاب...";
+  }, 3000)); // بعد 3 ثوانٍ
+
+  searchStatusTimeouts.push(setTimeout(() => {
+    statusElement.textContent = "أكثر من ثمانية ملايين نص...";
+  }, 6000)); // بعد 6 ثوانٍ (3 + 3)
+
+  searchStatusTimeouts.push(setTimeout(() => {
+    statusElement.textContent = ""; // إخفاء النص
+  }, 9000)); // بعد 9 ثوانٍ (6 + 3)
+}
+
+/**
+ * مسح جميع رسائل حالة البحث.
+ */
+function clearSearchStatusText() {
+  searchStatusTimeouts.forEach(clearTimeout);
+  searchStatusTimeouts = [];
+  document.getElementById('searchStatusText').textContent = "";
 }
 </script>
 </body>
