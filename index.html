@@ -29,11 +29,17 @@
             margin-top: 20px;
             border: 1px solid #eee; /* حدود خفيفة جداً */
         }
+        h1 {
+            font-size: 28px; /* حجم خط ثابت لـ H1 */
+        }
+        h2 {
+            font-size: 24px; /* حجم خط ثابت لـ H2 */
+        }
         input[type="text"] {
             border: 1px solid #e0e0e0; /* حدود فاتحة جداً */
             border-radius: 6px;
             padding: 12px 15px;
-            font-size: 1.1em;
+            font-size: 18px; /* حجم خط ثابت لحقول الإدخال */
             width: 100%;
             box-sizing: border-box;
             transition: border-color 0.3s ease;
@@ -47,7 +53,7 @@
             color: white;
             padding: 12px 20px;
             border-radius: 6px;
-            font-size: 1.1em;
+            font-size: 18px; /* حجم خط ثابت للأزرار الرئيسية */
             cursor: pointer;
             transition: background-color 0.3s ease, transform 0.2s ease;
             width: 100%;
@@ -62,16 +68,16 @@
             padding: 10px; /* تقليل المسافة الداخلية */
             margin: 10px 0; /* تقليل المسافة الخارجية */
             border-radius: 8px;
-            font-size: 16px; /* حجم الخط الأساسي للنتائج */
+            font-size: 16px; /* حجم الخط الأساسي للنتائج (سيتم تعديله بـ JS) */
         }
         .result b { /* للتحكم في حجم ولون عنوان الكتاب */
             color: #1a202c; /* لون أغمق للعناوين */
-            font-size: 1.1em; /* حجم خط أصغر لعنوان الكتاب */
+            font-size: 1.1em; /* حجم خط أصغر لعنوان الكتاب (نسبة إلى .result) */
             display: block; /* لجعل الكتاب يأخذ سطرًا خاصًا به */
             margin-bottom: 2px; /* مسافة صغيرة بعد عنوان الكتاب */
         }
         .result small { /* للمؤلف والجزء والصفحة */
-            font-size: 0.9em; /* خط أصغر للمؤلف والجزء والصفحة */
+            font-size: 0.9em; /* خط أصغر للمؤلف والجزء والصفحة (نسبة إلى .result) */
             color: #666; /* لون رمادي أفتح */
             display: block; /* لجعل المؤلف يأخذ سطرًا خاصًا به */
             margin-bottom: 8px; /* مسافة بعد المؤلف */
@@ -147,10 +153,10 @@
             padding: 20px;
             margin-top: 25px;
             box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03);
-            font-size: 16px; /* حجم الخط الأساسي للقسم */
+            font-size: 16px; /* حجم الخط الأساسي للقسم (سيتم تعديله بـ JS) */
         }
         #popularQuestionsSection h2 {
-            font-size: 1.5em; /* خط أكبر للعناوين */
+            font-size: 1.5em; /* خط أكبر للعناوين (نسبة إلى #popularQuestionsSection) */
             font-weight: 600;
             color: #333;
             margin-bottom: 15px;
@@ -173,7 +179,7 @@
             cursor: pointer;
             transition: background-color 0.2s, transform 0.1s;
             color: #444;
-            font-size: 0.95em;
+            font-size: 0.95em; /* نسبة إلى #popularQuestionsSection */
             font-weight: 500;
             display: flex;
             align-items: center;
@@ -200,7 +206,7 @@
             color: white;
             padding: 8px 15px;
             border-radius: 5px;
-            font-size: 0.9em;
+            font-size: 15px; /* حجم خط ثابت لأزرار التنقل */
             cursor: pointer;
             transition: background-color 0.3s ease;
             border: none;
@@ -222,7 +228,7 @@
             color: white;
             padding: 8px 15px;
             border-radius: 5px;
-            font-size: 0.9em;
+            font-size: 15px; /* حجم خط ثابت لأزرار تكبير/تصغير */
             cursor: pointer;
             transition: background-color 0.3s ease;
             border: none;
@@ -310,8 +316,9 @@ try {
     } else {
         console.warn("Global __firebase_config not found or is empty. Using a placeholder config.");
         // Placeholder config for local testing if __firebase_config is not provided by the environment
+        // يجب استبدال هذه القيم بقيم مشروع Firebase الخاص بك
         firebaseConfig = {
-            apiKey: "YOUR_FIREBASE_API_KEY", // Replace with your actual Firebase API Key
+            apiKey: "YOUR_FIREBASE_API_KEY", 
             authDomain: "your-project-id.firebaseapp.com",
             projectId: "your-project-id",
             storageBucket: "your-project-id.appspot.com",
@@ -415,7 +422,7 @@ function highlightText(text, query) {
 async function saveQuestionToFirestore(questionText) {
     if (!isAuthReady || !db || !userId) {
         console.warn("Firebase not ready or User ID not available for saving question.");
-        return;
+        return; // لا تحاول الحفظ إذا لم تكن Firebase جاهزة
     }
     try {
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -428,6 +435,7 @@ async function saveQuestionToFirestore(questionText) {
         console.log("Question saved to Firestore:", questionText);
     } catch (e) {
         console.error("Error adding document to Firestore: ", e);
+        // لا نرجع هنا، لنسمح لعملية البحث بالاستمرار حتى لو فشل حفظ السؤال
     }
 }
 
@@ -437,6 +445,7 @@ async function saveQuestionToFirestore(questionText) {
 async function loadPopularQuestions() {
     if (!isAuthReady || !db) {
         console.warn("Firebase not ready for loading questions.");
+        popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">فشل تحميل الأسئلة الشائعة (Firebase غير جاهز).</p>';
         return;
     }
     popularQuestionsList.innerHTML = '<p class="text-center text-gray-500">جاري تحميل الأسئلة...</p>';
@@ -487,7 +496,7 @@ async function askQuestion() {
 
   // حفظ السؤال إلى Firestore قبل إرسال الطلب إلى الواجهة الخلفية
   if (question) { // فقط إذا كان هناك سؤال مكتوب
-    await saveQuestionToFirestore(question);
+    await saveQuestionToFirestore(question); // لا نعود هنا، نسمح للبحث بالاستمرار
   }
 
   // إعادة تعيين منطقة النتائج
@@ -568,6 +577,7 @@ async function askQuestion() {
       }).join('');
 
       resultsContainer.innerHTML = resultsHtml;
+      updateTextFontSizes(); // تطبيق حجم الخط بعد تحميل النتائج
 
     } else { // لم يتم العثور على نتائج
       resultsContainer.innerHTML = "<p class='error'>لم يتم العثور على نتائج لاستعلامك.</p>";
