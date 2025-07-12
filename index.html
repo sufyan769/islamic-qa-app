@@ -1,75 +1,73 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>نظام الأسئلة الإسلامية</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>البحث في الكتب الإسلامية</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; background: #f5f5f5; direction: rtl; }
-    input, button { font-size: 1rem; padding: 5px; }
-    .result { background: white; margin: 10px 0; padding: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .question-link { font-size: 0.9em; color: #007bff; text-decoration: underline; cursor: pointer; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; direction: rtl; }
+    input, button { font-size: 18px; padding: 10px; margin-top: 10px; width: 100%; }
+    .result { background: #fff; padding: 10px; margin: 10px 0; border-radius: 8px; box-shadow: 0 0 3px #ccc; }
+    .question { font-weight: bold; margin-top: 20px; cursor: pointer; color: #0066cc; }
+    .link { font-size: 12px; color: gray; }
   </style>
 </head>
 <body>
-  <h1>ابحث في كتب الإسلام</h1>
-  <form id="searchForm">
-    <input type="text" id="query" placeholder="اكتب سؤالك..." size="40" required />
-    <button type="submit">بحث</button>
-  </form>
+  <h2>اسأل عن أي مسألة في الكتب الإسلامية</h2>
+  <input type="text" id="searchInput" placeholder="اكتب سؤالك هنا...">
+  <button onclick="search()">بحث</button>
 
   <div id="results"></div>
 
-  <hr/>
-  <h3>أسئلة مقترحة:</h3>
-  <ul id="previous-questions"></ul>
+  <h3>أسئلة سابقة:</h3>
+  <div id="previous"></div>
 
   <script>
-    const form = document.getElementById("searchForm");
-    const resultsDiv = document.getElementById("results");
-    const prevQuestions = document.getElementById("previous-questions");
+    async function search() {
+      const q = document.getElementById("searchInput").value.trim();
+      if (!q) return;
 
-    fetch("/ask?q=كلمة&mode=ai_only")
-      .then(r => r.json())
-      .then(data => {
-        if (data.previous_questions) {
-          data.previous_questions.forEach(q => {
-            const li = document.createElement("li");
-            li.innerHTML = `<span class="question-link" onclick="document.getElementById('query').value='${q}'; form.requestSubmit();">${q}</span>`;
-            prevQuestions.appendChild(li);
-          });
-        }
+      const response = await fetch(`/ask?q=${encodeURIComponent(q)}&mode=default`);
+      if (!response.ok) {
+        alert("حدث خطأ في البحث.");
+        return;
+      }
+      const data = await response.json();
+
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = "";
+
+      if (data.claude_answer) {
+        resultsDiv.innerHTML += `<div class='result'><b>الجواب المختصر:</b><br>${data.claude_answer}</div>`;
+      }
+
+      (data.sources_retrieved || []).forEach(doc => {
+        const link = `/doc/${doc.id}`;
+        resultsDiv.innerHTML += `
+          <div class='result'>
+            <b>${doc.book_title}</b> - ${doc.author_name}<br>
+            [جـ ${doc.part_number}، صـ ${doc.page_number}]<br>
+            <div>${doc.text_content}</div>
+            <div class='link'>رابط دائم: <a href='${link}'>${link}</a></div>
+          </div>`;
       });
+    }
 
-    form.addEventListener("submit", e => {
-      e.preventDefault();
-      resultsDiv.innerHTML = "جاري البحث...";
-      const q = document.getElementById("query").value;
-      fetch(`/ask?q=${encodeURIComponent(q)}&mode=default`)
-        .then(r => r.json())
-        .then(data => {
-          resultsDiv.innerHTML = "";
-          if (data.claude_answer) {
-            const a = document.createElement("div");
-            a.innerHTML = `<h3>الجواب:</h3><p>${data.claude_answer}</p>`;
-            resultsDiv.appendChild(a);
-          }
-          if (data.sources_retrieved) {
-            data.sources_retrieved.forEach(item => {
-              const d = document.createElement("div");
-              d.className = "result";
-              d.innerHTML = `
-                <b>الكتاب:</b> ${item.book_title}<br>
-                <b>المؤلف:</b> ${item.author_name}<br>
-                <b>الجزء:</b> ${item.part_number} - <b>الصفحة:</b> ${item.page_number}<br>
-                <b>النص:</b> ${item.text_content}<br>
-                <a href="/view/${item.id}" target="_blank">رابط دائم</a>
-              `;
-              resultsDiv.appendChild(d);
-            });
-          }
-        });
-    });
+    // تحميل الأسئلة السابقة
+    async function loadPrevious() {
+      const res = await fetch("/ask?q=الكلمة&mode=ai_only");
+      if (!res.ok) return;
+      const data = await res.json();
+      const container = document.getElementById("previous");
+      (data.previous_questions || []).forEach(q => {
+        const div = document.createElement("div");
+        div.className = "question";
+        div.textContent = q;
+        div.onclick = () => { document.getElementById("searchInput").value = q; search(); };
+        container.appendChild(div);
+      });
+    }
+    loadPrevious();
   </script>
 </body>
 </html>
