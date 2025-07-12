@@ -1,5 +1,6 @@
 flask
 elasticsearch
+requests
+anthropic # تأكد من وجود هذا السطر
 gunicorn
 flask-cors
-
