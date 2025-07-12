@@ -2,93 +2,78 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>نظام البحث في الكتب الإسلامية</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: sans-serif; background: #f9f9f9; padding: 20px; color: #333; }
+    input, button { font-size: 1.2em; padding: 10px; margin: 10px 0; width: 100%; }
+    .result, .ai-answer { background: #fff; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 0 5px #ccc; }
+    .more { color: blue; cursor: pointer; display: inline-block; margin-top: 10px; }
+    .hidden { display: none; }
+    #progress-bar { width: 0%; height: 5px; background: green; transition: width 0.5s; }
+  </style>
 </head>
-<body class="bg-gray-100 font-sans p-6">
-  <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6">
-    <h1 class="text-2xl font-bold text-indigo-700 text-center mb-6">نظام البحث في الكتب الإسلامية</h1>
-
-    <!-- واجهة إدخال البحث -->
-    <div class="flex gap-4 mb-4">
-      <input id="searchInput" type="text" placeholder="اكتب سؤالك هنا..." class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
-      <button id="searchBtn" class="bg-indigo-600 text-white px-5 py-3 rounded-lg hover:bg-indigo-700">بحث</button>
-    </div>
-
-    <!-- عداد التحميل الحقيقي -->
-    <div id="loadingText" class="text-center text-gray-500 hidden">🔄 جاري البحث... <span id="timer">0</span> ثوانٍ</div>
-
-    <!-- سجل الأسئلة -->
-    <div id="questionHistory" class="text-sm text-gray-600 space-y-1 mb-6"></div>
-
-    <!-- النتائج -->
-    <div id="resultsArea" class="space-y-4">
-      <div id="aiAnswer" class="bg-yellow-50 border border-yellow-300 p-4 rounded-md hidden"></div>
-      <div id="sourcesList" class="space-y-3"></div>
-    </div>
-  </div>
+<body>
+  <h1>البحث في الكتب الإسلامية</h1>
+  <input type="text" id="query" placeholder="اكتب سؤالك..." onkeydown="if(event.key==='Enter') search()">
+  <button onclick="search()">ابحث</button>
+  <div id="progress-container"><div id="progress-bar"></div></div>
+  <div id="claude" class="ai-answer"></div>
+  <div id="gemini" class="ai-answer"></div>
+  <div id="results"></div>
 
 <script>
-let previousQuestions = [];
+function search() {
+  const q = document.getElementById('query').value.trim();
+  if (!q) return;
+  document.getElementById('results').innerHTML = "";
+  document.getElementById('claude').textContent = "";
+  document.getElementById('gemini').textContent = "";
+  updateProgress(0);
+  simulateProgress();
 
-function runSearch() {
-  const query = document.getElementById('searchInput').value.trim();
-  if (!query) return;
-
-  previousQuestions.push(query);
-  document.getElementById('questionHistory').innerHTML = previousQuestions.map(q => `• ${q}`).join('<br>');
-
-  document.getElementById('aiAnswer').classList.add('hidden');
-  document.getElementById('sourcesList').innerHTML = '';
-
-  let timer = 0;
-  const loadingText = document.getElementById('loadingText');
-  const timerSpan = document.getElementById('timer');
-  loadingText.classList.remove('hidden');
-  timerSpan.textContent = timer;
-
-  const interval = setInterval(() => {
-    timer++;
-    timerSpan.textContent = timer;
-  }, 1000);
-
-  fetch(`https://islamic-qa-api-backend.onrender.com/ask?q=${encodeURIComponent(query)}&mode=default`)
+  fetch(`/ask?q=${encodeURIComponent(q)}&mode=default`)
     .then(res => res.json())
     .then(data => {
-      clearInterval(interval);
-      loadingText.classList.add('hidden');
-
-      if (data.claude_answer) {
-        const aiDiv = document.getElementById('aiAnswer');
-        aiDiv.innerHTML = `<div class='whitespace-pre-wrap'>${data.claude_answer}</div>`;
-        aiDiv.classList.remove('hidden');
-      }
-
-      const list = document.getElementById('sourcesList');
-      data.sources_retrieved.forEach((src, i) => {
-        const item = document.createElement('div');
-        item.className = 'bg-gray-50 border p-3 rounded';
-        const fullId = `fulltext-${i}`;
-        item.innerHTML = `
-          <strong>${src.book_title}</strong> - ${src.author_name}<br>
-          <div class='text-sm text-gray-600'>
-            ${src.text_content.substring(0, 200)}... 
-            <button onclick="document.getElementById('${fullId}').classList.toggle('hidden')" class="text-blue-600 underline">عرض المزيد</button>
-            <div id="${fullId}" class="mt-2 hidden bg-white border rounded p-2 text-sm leading-relaxed">${src.text_content}</div>
+      updateProgress(100);
+      if (data.claude_answer) document.getElementById('claude').innerHTML = `<b>Claude:</b><br>${data.claude_answer}`;
+      if (data.gemini_answer) document.getElementById('gemini').innerHTML = `<b>Gemini:</b><br>${data.gemini_answer}`;
+      if (data.sources_retrieved) {
+        const html = data.sources_retrieved.map(doc => {
+          const short = doc.text_content.slice(0, 200);
+          const full = doc.text_content;
+          const id = Math.random().toString(36).substring(7);
+          return `<div class='result'>
+            <b>${doc.book_title}</b> - ${doc.author_name} <br>
+            <div id='short-${id}'>${short}... <span class='more' onclick="showFull('${id}', \`${full}\`)">عرض المزيد</span></div>
+            <div id='full-${id}' class='hidden'>${full}</div>
           </div>`;
-        list.appendChild(item);
-      });
-    })
-    .catch(() => {
-      clearInterval(interval);
-      loadingText.textContent = 'حدث خطأ أثناء جلب النتائج.';
+        }).join('');
+        document.getElementById('results').innerHTML = html;
+      }
     });
 }
 
-document.getElementById('searchBtn').addEventListener('click', runSearch);
-document.getElementById('searchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') runSearch();
-});
+function showFull(id, text) {
+  document.getElementById(`short-${id}`).remove();
+  document.getElementById(`full-${id}`).classList.remove('hidden');
+}
+
+function updateProgress(val) {
+  document.getElementById('progress-bar').style.width = val + '%';
+}
+
+function simulateProgress() {
+  let val = 0;
+  const interval = setInterval(() => {
+    if (val < 90) {
+      val += 10;
+      updateProgress(val);
+    } else {
+      clearInterval(interval);
+    }
+  }, 300);
+}
 </script>
 </body>
 </html>
