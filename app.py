@@ -12,10 +12,12 @@ CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
 INDEX_NAME = "islamic_texts"
+
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
+claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
+
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
 AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
 
 es = None
@@ -30,10 +32,10 @@ except Exception as e:
     sys.exit(1)
 
 @app.route("/")
-def index():
-    return "OK"
+def home():
+    return "API is working"
 
-@app.route("/ask", methods=["GET"])
+@app.route("/ask")
 def ask():
     query = request.args.get("q", "").strip()
     mode = request.args.get("mode", "default")
@@ -71,7 +73,6 @@ def ask():
     except Exception as e:
         return jsonify({"error": f"Search failure: {e}"}), 500
 
-    # Claude
     claude_answer = ""
     if mode in ("default", "ai_only") and claude_client:
         context = "\n\n".join([
@@ -85,7 +86,6 @@ def ask():
         except Exception as e:
             claude_answer = f"Claude error: {e}"
 
-    # Gemini
     gemini_answer = ""
     if mode in ("default", "ai_only") and GEMINI_API_KEY:
         try:
