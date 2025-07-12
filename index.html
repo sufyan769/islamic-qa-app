@@ -2,72 +2,127 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>البحث في الكتب الإسلامية</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; direction: rtl; }
-    input, button { font-size: 18px; padding: 10px; margin-top: 10px; width: 100%; }
-    .result { background: #fff; padding: 10px; margin: 10px 0; border-radius: 8px; box-shadow: 0 0 3px #ccc; }
-    .question { font-weight: bold; margin-top: 20px; cursor: pointer; color: #0066cc; }
-    .link { font-size: 12px; color: gray; }
-  </style>
+  <title>نظام البحث في الكتب الإسلامية</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h2>اسأل عن أي مسألة في الكتب الإسلامية</h2>
-  <input type="text" id="searchInput" placeholder="اكتب سؤالك هنا...">
-  <button onclick="search()">بحث</button>
+<body class="bg-gray-100 font-sans p-6">
+  <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6">
+    <h1 class="text-2xl font-bold text-indigo-700 text-center mb-6">نظام البحث في الكتب الإسلامية</h1>
 
-  <div id="results"></div>
+    <!-- واجهة إدخال البحث -->
+    <div class="flex flex-col sm:flex-row gap-4 mb-4">
+      <input id="searchInput" type="text" placeholder="اكتب سؤالك أو عبارتك..." class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
+      <button onclick="runSearch('default')" class="bg-indigo-600 text-white px-5 py-3 rounded-lg hover:bg-indigo-700">بحث</button>
+    </div>
 
-  <h3>أسئلة سابقة:</h3>
-  <div id="previous"></div>
+    <!-- أزرار أنماط البحث -->
+    <div class="flex flex-wrap gap-3 justify-center mb-6">
+      <button onclick="runSearch('default')" class="px-4 py-2 bg-indigo-100 text-indigo-800 rounded-md font-semibold">بحث مختصر</button>
+      <button onclick="runSearch('ai_only')" class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-md font-semibold">ذكاء فقط</button>
+      <button onclick="runSearch('full')" class="px-4 py-2 bg-green-100 text-green-800 rounded-md font-semibold">البحث الشامل</button>
+    </div>
 
-  <script>
-    async function search() {
-      const q = document.getElementById("searchInput").value.trim();
-      if (!q) return;
+    <!-- عرض الأسئلة السابقة -->
+    <div id="previousQuestions" class="mb-6 text-gray-700 space-y-1"></div>
 
-      const response = await fetch(`/ask?q=${encodeURIComponent(q)}&mode=default`);
-      if (!response.ok) {
-        alert("حدث خطأ في البحث.");
-        return;
+    <!-- منطقة عرض النتائج -->
+    <div id="resultsArea" class="space-y-4">
+      <div id="loader" class="text-center text-gray-500 hidden">🔍 جاري البحث في الكتب...</div>
+      <div id="aiAnswer" class="bg-yellow-50 border border-yellow-300 p-4 rounded-md hidden"></div>
+      <div id="sourcesList" class="space-y-3"></div>
+      <div id="loadMoreContainer" class="text-center hidden">
+        <button onclick="loadMore()" class="mt-4 bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded">تحميل المزيد</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+let currentMode = 'default';
+let lastQuery = '';
+let from = 0;
+const size = 20;
+const API_BASE = 'https://islamic-qa-api-backend.onrender.com';
+
+function runSearch(mode) {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  currentMode = mode;
+  lastQuery = query;
+  from = 0;
+
+  document.getElementById('aiAnswer').classList.add('hidden');
+  document.getElementById('sourcesList').innerHTML = '';
+  document.getElementById('loadMoreContainer').classList.add('hidden');
+  document.getElementById('loader').classList.remove('hidden');
+
+  fetchResults();
+}
+
+function fetchResults() {
+  let url = `${API_BASE}/ask?q=${encodeURIComponent(lastQuery)}&from=${from}&size=${size}&mode=${currentMode}`;
+  fetch(url)
+    .then(res => {
+      if (!res.ok) throw new Error("Not Found");
+      return res.json();
+    })
+    .then(data => {
+      document.getElementById('loader').classList.add('hidden');
+
+      if (data.previous_questions) {
+        const qDiv = document.getElementById('previousQuestions');
+        qDiv.innerHTML = '<h3 class="font-bold mb-2">أسئلة شائعة:</h3>' +
+          data.previous_questions.map(q => `<div>🔹 ${q}</div>`).join('');
       }
-      const data = await response.json();
 
-      const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = "";
-
-      if (data.claude_answer) {
-        resultsDiv.innerHTML += `<div class='result'><b>الجواب المختصر:</b><br>${data.claude_answer}</div>`;
+      if (currentMode !== 'full' && data.claude_answer) {
+        const aiDiv = document.getElementById('aiAnswer');
+        aiDiv.innerHTML = `<div class='whitespace-pre-wrap'>${data.claude_answer}</div>`;
+        aiDiv.classList.remove('hidden');
       }
 
-      (data.sources_retrieved || []).forEach(doc => {
-        const link = `/doc/${doc.id}`;
-        resultsDiv.innerHTML += `
-          <div class='result'>
-            <b>${doc.book_title}</b> - ${doc.author_name}<br>
-            [جـ ${doc.part_number}، صـ ${doc.page_number}]<br>
-            <div>${doc.text_content}</div>
-            <div class='link'>رابط دائم: <a href='${link}'>${link}</a></div>
-          </div>`;
-      });
-    }
+      const list = document.getElementById('sourcesList');
+      if (data.sources_retrieved) {
+        data.sources_retrieved.forEach(src => {
+          const item = document.createElement('div');
+          item.className = 'bg-gray-50 border p-3 rounded';
+          item.innerHTML = `
+            <strong>${src.book_title}</strong> - ${src.author_name}<br>
+            <span class='text-sm text-gray-600'>
+              ${highlight(src.text_content, lastQuery, 200)}
+              <a href="/view/${src.id}" target="_blank" class="text-blue-600 underline">رابط دائم</a>
+            </span>`;
+          list.appendChild(item);
+        });
+      }
 
-    // تحميل الأسئلة السابقة
-    async function loadPrevious() {
-      const res = await fetch("/ask?q=الكلمة&mode=ai_only");
-      if (!res.ok) return;
-      const data = await res.json();
-      const container = document.getElementById("previous");
-      (data.previous_questions || []).forEach(q => {
-        const div = document.createElement("div");
-        div.className = "question";
-        div.textContent = q;
-        div.onclick = () => { document.getElementById("searchInput").value = q; search(); };
-        container.appendChild(div);
-      });
-    }
-    loadPrevious();
-  </script>
+      if (currentMode === 'full' && data.sources_retrieved.length === size) {
+        document.getElementById('loadMoreContainer').classList.remove('hidden');
+      }
+    })
+    .catch(err => {
+      document.getElementById('loader').classList.add('hidden');
+      console.error('Fetch error:', err);
+    });
+}
+
+function loadMore() {
+  from += size;
+  fetchResults();
+}
+
+function highlight(text, query, maxLen = 200) {
+  const words = query.split(/\s+/).filter(w => w.length > 2);
+  let result = text.substring(0, maxLen);
+  for (let word of words) {
+    result = result.replace(new RegExp(word, 'gi'), match => `<mark class='bg-yellow-200'>${match}</mark>`);
+  }
+  return result;
+}
+
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runSearch('default');
+});
+</script>
 </body>
 </html>
