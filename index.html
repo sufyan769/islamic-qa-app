@@ -122,6 +122,26 @@
       color: #666; /* لون رمادي أفتح */
       min-height: 20px;
     }
+    #showMoreContainer {
+      text-align: center;
+      margin-top: 20px;
+    }
+    #showMoreButton {
+      background-color: #4CAF50; /* لون أخضر */
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+      border: none;
+      display: inline-block; /* لكي لا يأخذ العرض الكامل */
+      width: auto; /* لكي لا يأخذ العرض الكامل */
+    }
+    #showMoreButton:hover {
+      background-color: #45a049;
+      transform: translateY(-1px);
+    }
   </style>
 </head>
 <body>
@@ -136,6 +156,11 @@
     <!-- تم إزالة نوافذ الذكاء الاصطناعي (Claude و Gemini) هنا -->
     
     <div id="results"></div>
+
+    <!-- زر إظهار المزيد للتقسيم -->
+    <div id="showMoreContainer" class="hidden">
+      <button id="showMoreButton" onclick="search(true)">إظهار المزيد</button>
+    </div>
   </div>
 
 <script>
@@ -145,19 +170,28 @@ const API_BASE_URL = "https://islamic-qa-api-backend.onrender.com";
 // متغير لتخزين معرفات setTimeout لرسائل حالة البحث
 let searchStatusTimeouts = [];
 
+// متغيرات للتقسيم (Pagination)
+let currentFrom = 0;
+const PAGE_SIZE = 20; // عدد النتائج التي يتم جلبها في كل مرة
+
 /**
  * تبدأ عملية البحث عند إدخال المستخدم لاستعلام.
  * تقوم بمسح النتائج السابقة، وعرض مؤشرات التحميل، وإجراء استدعاء API.
+ * @param {boolean} append - إذا كانت true، يتم إضافة النتائج الجديدة إلى الموجودة.
  */
-async function search() {
+async function search(append = false) {
   const q = document.getElementById('query').value.trim();
   if (!q) {
     // يمكن إضافة رسالة خطأ للمستخدم هنا إذا كان الاستعلام فارغًا
     return;
   }
 
-  // مسح النتائج السابقة
-  document.getElementById('results').innerHTML = "";
+  // مسح النتائج السابقة فقط إذا كان بحثًا جديدًا (وليس إضافة المزيد)
+  if (!append) {
+    document.getElementById('results').innerHTML = "";
+    currentFrom = 0; // إعادة تعيين الفهرس للبحث الجديد
+    document.getElementById('showMoreContainer').classList.add('hidden'); // إخفاء زر "إظهار المزيد"
+  }
 
   // إظهار شريط التقدم ومؤشر التحميل
   updateProgress(0);
@@ -166,8 +200,8 @@ async function search() {
   updateSearchStatusText(); // بدء تحديث رسائل حالة البحث
 
   try {
-    // تغيير وضع الطلب إلى "full" لطلب المصادر فقط من الخلفية
-    const response = await fetch(`${API_BASE_URL}/ask?q=${encodeURIComponent(q)}&mode=full`);
+    // تضمين معلمات 'from' و 'size' لتقسيم النتائج
+    const response = await fetch(`${API_BASE_URL}/ask?q=${encodeURIComponent(q)}&mode=full&from=${currentFrom}&size=${PAGE_SIZE}`);
     const data = await response.json();
 
     updateProgress(100); // اكتمال التقدم
@@ -178,17 +212,18 @@ async function search() {
     if (data.error) {
       // عرض رسالة الخطأ من الخلفية
       document.getElementById('results').innerHTML = `<p class='error'>خطأ: ${data.error}</p>`;
+      document.getElementById('showMoreContainer').classList.add('hidden'); // إخفاء الزر عند الخطأ
       return;
     }
 
     // عرض المصادر المسترجعة
     if (data.sources_retrieved && data.sources_retrieved.length > 0) {
-      const html = data.sources_retrieved.map(doc => {
+      const newResultsHtml = data.sources_retrieved.map(doc => {
         const full = doc.text_content;
         const lines = full.split('\n'); // تقسيم النص إلى أسطر
         let short = '';
 
-        // منطق جديد لتقليم النص: سطرين أو 200 حرف كحد أقصى إذا كان سطرًا واحدًا
+        // منطق تقليم النص: سطرين أو 200 حرف كحد أقصى إذا كان سطرًا واحدًا
         if (lines.length >= 2) {
           short = lines.slice(0, 2).join('<br>'); // أخذ أول سطرين وربطهما بفاصل سطر HTML
           if (lines.length > 2) {
@@ -213,10 +248,25 @@ async function search() {
           <div id='short-${id}' data-full-text="${encodeURIComponent(full)}">${short} <span class='more' onclick="showFull('${id}')">عرض المزيد</span></div>
         </div>`;
       }).join('');
-      document.getElementById('results').innerHTML = html;
-    } else if (data.sources_retrieved && data.sources_retrieved.length === 0) {
-        // إذا لم يتم العثور على مصادر
-        document.getElementById('results').innerHTML = "<p class='error'>لم يتم العثور على نتائج لاستعلامك.</p>";
+
+      // إضافة النتائج الجديدة إلى النتائج الموجودة
+      document.getElementById('results').insertAdjacentHTML('beforeend', newResultsHtml);
+
+      // تحديث الفهرس للطلب التالي
+      currentFrom += data.sources_retrieved.length;
+
+      // إظهار أو إخفاء زر "إظهار المزيد"
+      if (data.sources_retrieved.length < PAGE_SIZE) {
+        document.getElementById('showMoreContainer').classList.add('hidden'); // لا توجد المزيد من النتائج
+      } else {
+        document.getElementById('showMoreContainer').classList.remove('hidden'); // توجد المزيد من النتائج
+      }
+
+    } else if (currentFrom === 0) { // لم يتم العثور على نتائج في البحث الأولي
+      document.getElementById('results').innerHTML = "<p class='error'>لم يتم العثور على نتائج لاستعلامك.</p>";
+      document.getElementById('showMoreContainer').classList.add('hidden');
+    } else { // لا توجد المزيد من النتائج لإضافتها
+        document.getElementById('showMoreContainer').classList.add('hidden');
     }
 
   } catch (err) {
@@ -225,6 +275,7 @@ async function search() {
     stopSimulateProgress(); // إيقاف محاكاة التقدم عند حدوث خطأ
     clearSearchStatusText(); // مسح رسائل حالة البحث عند حدوث خطأ
     document.getElementById('results').innerHTML = "<p class='error'>تعذّر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط</p>";
+    document.getElementById('showMoreContainer').classList.add('hidden'); // إخفاء الزر عند الخطأ
     console.error("خطأ في جلب البيانات:", err);
   }
 }
