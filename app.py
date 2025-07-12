@@ -179,22 +179,22 @@ def get_contextual_text():
     """
     book_title = request.args.get("book_title")
     author_name = request.args.get("author_name")
-    current_part_number = request.args.get("current_part_number") # لا نحولها إلى int هنا مباشرة
-    current_page_number = request.args.get("current_page_number") # لا نحولها إلى int هنا مباشرة
+    current_part_number_str = request.args.get("current_part_number") 
+    current_page_number_str = request.args.get("current_page_number") 
     direction = request.args.get("direction") # 'next' أو 'prev'
 
-    logging.info(f"طلب نص سياقي: الكتاب='{book_title}', المؤلف='{author_name}', الجزء='{current_part_number}', الصفحة='{current_page_number}', الاتجاه='{direction}'")
+    logging.info(f"طلب نص سياقي: الكتاب='{book_title}', المؤلف='{author_name}', الجزء='{current_part_number_str}', الصفحة='{current_page_number_str}', الاتجاه='{direction}'")
 
-    if not all([book_title, author_name, direction, current_part_number, current_page_number]):
+    if not all([book_title, author_name, direction, current_part_number_str, current_page_number_str]):
         logging.warning("معلمات مفقودة لطلب النص السياقي.")
         return jsonify({"error": "يرجى توفير عنوان الكتاب، اسم المؤلف، الجزء، الصفحة، والاتجاه."}), 400
 
     try:
         # تحويل أرقام الجزء والصفحة إلى أعداد صحيحة هنا
-        current_part_number = int(current_part_number)
-        current_page_number = int(current_page_number)
+        current_part_number = int(current_part_number_str)
+        current_page_number = int(current_page_number_str)
     except ValueError:
-        logging.error("أرقام الجزء أو الصفحة غير صالحة.")
+        logging.error(f"أرقام الجزء أو الصفحة غير صالحة: part='{current_part_number_str}', page='{current_page_number_str}'")
         return jsonify({"error": "أرقام الجزء أو الصفحة يجب أن تكون أعدادًا صحيحة."}), 400
 
     try:
@@ -276,11 +276,16 @@ def get_contextual_text():
         
         logging.info(f"استعلام Elasticsearch للنص السياقي: {json.dumps(query_body, indent=2, ensure_ascii=False)}")
 
+        # تنفيذ البحث في Elasticsearch
         res = es.search(index=INDEX_NAME, body=query_body)
-        logging.info(f"استجابة Elasticsearch للنص السياقي: {json.dumps(res, indent=2, ensure_ascii=False)}")
+        
+        # تحويل استجابة Elasticsearch إلى قاموس Python قابل للتحويل إلى JSON
+        # هذا يحل مشكلة "Object of type APIResponse is not JSON serializable"
+        res_dict = res.body if hasattr(res, 'body') else res 
+        logging.info(f"استجابة Elasticsearch للنص السياقي: {json.dumps(res_dict, indent=2, ensure_ascii=False)}")
 
-        if res["hits"]["hits"]:
-            hit = res["hits"]["hits"][0]["_source"]
+        if res_dict["hits"]["hits"]:
+            hit = res_dict["hits"]["hits"][0]["_source"]
             return jsonify({
                 "book_title": hit.get("book_title", "غير معروف"),
                 "author_name": hit.get("author_name", "غير معروف"),
