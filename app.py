@@ -66,7 +66,7 @@ def ask():
         return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
     # تنظيف الاستعلام: استخراج الكلمات العربية وتصفية كلمات التوقف
-    words = [w for w in re.findall(r"[\u0600-\u06FF]+", query) if len(w) > 2 and w not in AR_STOPWORDS]
+    words = [w for w w in re.findall(r"[\u0600-\u06FF]+", query) if len(w) > 2 and w not in AR_STOPWORDS]
     sources = [] # قائمة لتخزين المصادر المسترجعة من Elasticsearch
 
     def build_query(precise=True):
@@ -127,7 +127,8 @@ def ask():
                 f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
                 for s in sources
             ])
-            prompt = f"هل يوجد في الفقرات التالية جواب مباشر عن السؤال: {query}\n\nالفقرات:\n{context}\n\nإذا وُجد، فاذكر الجواب مع الإشارة إلى الفقرة والكتاب والصفحة. وإلا، أجب بناءً على معرفتك العامة إذا كان السؤال لا يحتاج إلى مصدر."
+            # تم تعديل هذا الجزء لتوجيه Claude ليكون محايدًا قدر الإمكان
+            prompt = f"أجب عن السؤال التالي بناءً على الفقرات المقدمة فقط. إذا لم يكن الجواب موجودًا في الفقرات، اذكر ذلك بوضوح. تجنب إضافة معلومات من معرفتك العامة أو التحيزات المذهبية. اذكر الجواب مع الإشارة إلى الفقرة والكتاب والصفحة.\n\nالسؤال: {query}\n\nالفقرات:\n{context}"
 
         try:
             msg = claude_client.messages.create(model="claude-3-5-sonnet-20241022", max_tokens=800, messages=[{"role": "user", "content": prompt}])
@@ -140,12 +141,14 @@ def ask():
     gemini_answer = ""
     if mode in ("default", "ai_only") and GEMINI_API_KEY:
         try:
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
-            # يمكن أيضاً تمرير السياق إلى Gemini لتحسين الإجابة
+            # استخدام نموذج Gemini Flash بدلاً من Gemini Pro لزيادة التوافر وقد يحل مشكلة 404
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+            
             gemini_prompt = f"أجب باختصار عن السؤال التالي: {query}"
             if sources and mode == "default":
                 context_for_gemini = "\n\n".join([s['text_content'] for s in sources])
-                gemini_prompt = f"بناءً على النصوص التالية:\n{context_for_gemini}\n\nأجب باختصار عن السؤال: {query}"
+                # توجيه Gemini ليكون محايدًا قدر الإمكان والاعتماد على السياق
+                gemini_prompt = f"بناءً على النصوص التالية فقط، أجب باختصار عن السؤال التالي. إذا لم يكن الجواب موجودًا في النصوص، اذكر ذلك بوضوح. تجنب إضافة معلومات من معرفتك العامة أو التحيزات المذهبية:\n{context_for_gemini}\n\nالسؤال: {query}"
 
             gemini_payload = {
                 "contents": [{"parts": [{"text": gemini_prompt}]}]
