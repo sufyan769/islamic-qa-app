@@ -8,7 +8,8 @@
     body { font-family: sans-serif; background: #f9f9f9; padding: 20px; color: #333; }
     input, button { font-size: 1.2em; padding: 10px; margin: 10px 0; width: 100%; }
     .result, .ai-answer { background: #fff; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 0 5px #ccc; }
-    .error { color: red; margin-top: 10px; }
+    .more { color: blue; cursor: pointer; display: inline-block; margin-top: 10px; }
+    .hidden { display: none; }
     #progress-bar { width: 0%; height: 5px; background: green; transition: width 0.5s; }
   </style>
 </head>
@@ -17,7 +18,6 @@
   <input type="text" id="query" placeholder="اكتب سؤالك..." onkeydown="if(event.key==='Enter') search()">
   <button onclick="search()">ابحث</button>
   <div id="progress-container"><div id="progress-bar"></div></div>
-  <div id="error" class="error"></div>
   <div id="claude" class="ai-answer"></div>
   <div id="gemini" class="ai-answer"></div>
   <div id="results"></div>
@@ -29,24 +29,24 @@ function search() {
   document.getElementById('results').innerHTML = "";
   document.getElementById('claude').textContent = "";
   document.getElementById('gemini').textContent = "";
-  document.getElementById('error').textContent = "";
   updateProgress(0);
   simulateProgress();
 
-  fetch("https://islamic-qa-api-backend.onrender.com/ask?q=" + encodeURIComponent(q) + "&mode=default")
-    .then(res => {
-      if (!res.ok) throw new Error("الرابط غير صالح أو الخدمة غير متوفرة");
-      return res.json();
-    })
+  fetch(`https://islamic-qa-api-backend.onrender.com/ask?q=${encodeURIComponent(q)}&mode=default`)
+    .then(res => res.json())
     .then(data => {
       updateProgress(100);
       if (data.claude_answer) document.getElementById('claude').innerHTML = `<b>Claude:</b><br>${data.claude_answer}`;
       if (data.gemini_answer) document.getElementById('gemini').innerHTML = `<b>Gemini:</b><br>${data.gemini_answer}`;
       if (data.sources_retrieved) {
         const html = data.sources_retrieved.map(doc => {
+          const full = doc.text_content;
+          const short = full.slice(0, 180) + '...';
+          const id = Math.random().toString(36).substring(7);
           return `<div class='result'>
             <b>${doc.book_title}</b> - ${doc.author_name} <br>
-            <div>${doc.text_content}</div>
+            <div id='short-${id}'>${short} <span class='more' onclick='showFull("${id}")'>عرض المزيد</span></div>
+            <div id='full-${id}' class='hidden'>${full}</div>
           </div>`;
         }).join('');
         document.getElementById('results').innerHTML = html;
@@ -54,8 +54,13 @@ function search() {
     })
     .catch(err => {
       updateProgress(100);
-      document.getElementById('error').textContent = "تعذر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط";
+      document.getElementById('results').innerHTML = "<div style='color:red;'>تعذّر تحميل النتائج. تحقق من الاتصال أو من صحة الرابط</div>";
     });
+}
+
+function showFull(id) {
+  document.getElementById(`short-${id}`).style.display = 'none';
+  document.getElementById(`full-${id}`).classList.remove('hidden');
 }
 
 function updateProgress(val) {
