@@ -17,13 +17,16 @@
 
     <!-- أزرار أنماط البحث -->
     <div class="flex flex-wrap gap-3 justify-center mb-6">
-      <button onclick="runSearch('default')" class="px-4 py-2 bg-indigo-100 text-indigo-800 rounded-md font-semibold">بحث مختصر</button>
+      <button onclick="runSearch('default')" class="px-4 py-2 bg-indigo-100 text-indigo-800 rounded-md font-semibold">بحث مختصر (ذكاء + نصوص)</button>
       <button onclick="runSearch('ai_only')" class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-md font-semibold">ذكاء فقط</button>
-      <button onclick="runSearch('full')" class="px-4 py-2 bg-green-100 text-green-800 rounded-md font-semibold">البحث الشامل</button>
+      <button onclick="runSearch('full')" class="px-4 py-2 bg-green-100 text-green-800 rounded-md font-semibold">نصوص فقط</button>
     </div>
 
     <!-- عرض الأسئلة السابقة -->
-    <div id="previousQuestions" class="mb-6 text-gray-700 space-y-1"></div>
+    <div id="previousQuestions" class="mb-4 hidden">
+      <h2 class="text-lg font-bold text-gray-700 mb-2">أسئلة مقترحة:</h2>
+      <ul class="list-disc list-inside text-gray-700 space-y-1" id="previousList"></ul>
+    </div>
 
     <!-- منطقة عرض النتائج -->
     <div id="resultsArea" class="space-y-4">
@@ -61,18 +64,21 @@ function runSearch(mode) {
 
 function fetchResults() {
   let url = `${API_BASE}/ask?q=${encodeURIComponent(lastQuery)}&from=${from}&size=${size}&mode=${currentMode}`;
+
   fetch(url)
-    .then(res => {
-      if (!res.ok) throw new Error("Not Found");
-      return res.json();
-    })
+    .then(res => res.json())
     .then(data => {
       document.getElementById('loader').classList.add('hidden');
 
-      if (data.previous_questions) {
-        const qDiv = document.getElementById('previousQuestions');
-        qDiv.innerHTML = '<h3 class="font-bold mb-2">أسئلة شائعة:</h3>' +
-          data.previous_questions.map(q => `<div>🔹 ${q}</div>`).join('');
+      if (data.previous_questions && data.previous_questions.length > 0 && from === 0) {
+        const list = document.getElementById('previousList');
+        list.innerHTML = '';
+        data.previous_questions.forEach(q => {
+          const li = document.createElement('li');
+          li.textContent = q;
+          list.appendChild(li);
+        });
+        document.getElementById('previousQuestions').classList.remove('hidden');
       }
 
       if (currentMode !== 'full' && data.claude_answer) {
@@ -88,10 +94,9 @@ function fetchResults() {
           item.className = 'bg-gray-50 border p-3 rounded';
           item.innerHTML = `
             <strong>${src.book_title}</strong> - ${src.author_name}<br>
-            <span class='text-sm text-gray-600'>
-              ${highlight(src.text_content, lastQuery, 200)}
-              <a href="/view/${src.id}" target="_blank" class="text-blue-600 underline">رابط دائم</a>
-            </span>`;
+            <span class='text-sm text-gray-600 whitespace-pre-wrap'>${highlight(src.text_content, lastQuery, 200)}</span>
+            <div class='mt-2 text-sm'>📄 <a href="/view/${src.id}" class="text-blue-600 underline" target="_blank">رابط دائم</a></div>
+          `;
           list.appendChild(item);
         });
       }
