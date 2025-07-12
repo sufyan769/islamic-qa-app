@@ -10,7 +10,7 @@
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      background: #f0f2f5; /* لون خلفية أفتح */
+      background: #fdfdfd; /* خلفية بيضاء ناصعة */
       padding: 20px;
       color: #333;
       display: flex;
@@ -21,30 +21,31 @@
     .container {
       background: #ffffff;
       padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* ظل أكبر وأكثر وضوحاً */
+      border-radius: 8px; /* حواف أقل استدارة */
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* ظل خفيف جداً */
       max-width: 800px;
       width: 100%;
       margin-top: 20px;
+      border: 1px solid #eee; /* حدود خفيفة جداً */
     }
     input[type="text"] {
-      border: 1px solid #d1d5db; /* حدود أفتح */
-      border-radius: 8px;
+      border: 1px solid #e0e0e0; /* حدود فاتحة جداً */
+      border-radius: 6px;
       padding: 12px 15px;
       font-size: 1.1em;
       width: 100%;
-      box-sizing: border-box; /* لضمان أن العرض يشمل الحشوة والحدود */
+      box-sizing: border-box;
       transition: border-color 0.3s ease;
     }
     input[type="text"]:focus {
       outline: none;
-      border-color: #3b82f6; /* لون أزرق عند التركيز */
+      border-color: #60a5fa; /* لون أزرق فاتح عند التركيز */
     }
     button {
-      background-color: #3b82f6; /* لون أزرق أساسي */
+      background-color: #60a5fa; /* لون أزرق فاتح أساسي */
       color: white;
       padding: 12px 20px;
-      border-radius: 8px;
+      border-radius: 6px;
       font-size: 1.1em;
       cursor: pointer;
       transition: background-color 0.3s ease, transform 0.2s ease;
@@ -53,22 +54,22 @@
       border: none;
     }
     button:hover {
-      background-color: #2563eb; /* لون أزرق أغمق عند التحويم */
-      transform: translateY(-2px); /* تأثير رفع بسيط */
+      background-color: #3b82f6; /* لون أزرق أغمق قليلاً عند التحويم */
+      transform: translateY(-1px); /* تأثير رفع أقل */
     }
     .result, .ai-answer {
-      background: #f9fafb; /* خلفية فاتحة للنتائج */
+      background: #ffffff; /* خلفية بيضاء للنتائج */
       padding: 15px;
       margin: 15px 0;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* ظل خفيف */
-      border: 1px solid #e5e7eb; /* حدود خفيفة */
+      border-radius: 8px;
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03); /* ظل أخف */
+      border: 1px solid #f0f0f0; /* حدود فاتحة جداً */
     }
     .ai-answer b {
-      color: #1f2937; /* لون أغمق للعناوين */
+      color: #1a202c; /* لون أغمق للعناوين */
     }
     .more {
-      color: #1e40af; /* أزرق أغمق للرابط "عرض المزيد" */
+      color: #2563eb; /* أزرق أغمق للرابط "عرض المزيد" */
       cursor: pointer;
       display: inline-block;
       margin-top: 10px;
@@ -80,34 +81,34 @@
     }
     #progress-container {
       width: 100%;
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 3px;
+      height: 4px; /* شريط تقدم أرفع */
+      background: #e0e0e0;
+      border-radius: 2px;
       margin-top: 10px;
       overflow: hidden;
     }
     #progress-bar {
       width: 0%;
       height: 100%;
-      background: linear-gradient(to right, #3b82f6, #2563eb); /* تدرج لوني لشريط التقدم */
+      background: linear-gradient(to right, #60a5fa, #3b82f6); /* تدرج لوني أزرق فاتح */
       transition: width 0.5s ease-out;
-      border-radius: 3px;
+      border-radius: 2px;
     }
     .error {
-      color: #ef4444; /* لون أحمر للأخطاء */
+      color: #ef4444;
       font-weight: bold;
       text-align: center;
       margin-top: 10px;
     }
     .loading-spinner {
-      border: 4px solid rgba(0, 0, 0, 0.1);
-      border-left-color: #3b82f6;
+      border: 3px solid rgba(0, 0, 0, 0.1); /* حدود أرفع */
+      border-left-color: #60a5fa; /* لون أزرق فاتح */
       border-radius: 50%;
-      width: 24px;
-      height: 24px;
+      width: 20px; /* حجم أصغر */
+      height: 20px;
       animation: spin 1s linear infinite;
-      margin: 20px auto;
-      display: none; /* مخفي مبدئياً */
+      margin: 15px auto; /* مسافة أقل */
+      display: none;
     }
     @keyframes spin {
       0% { transform: rotate(0deg); }
@@ -115,16 +116,16 @@
     }
     #searchStatusText {
       text-align: center;
-      margin-top: 10px;
-      font-size: 0.9em;
-      color: #555;
-      min-height: 20px; /* لضمان عدم حدوث CLS */
+      margin-top: 8px; /* مسافة أقل */
+      font-size: 0.85em; /* حجم خط أصغر قليلاً */
+      color: #666; /* لون رمادي أفتح */
+      min-height: 20px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">البحث في الكتب الإسلامية</h1>
+    <h1 class="text-2xl font-bold text-center mb-6 text-gray-700">البحث في الكتب الإسلامية</h1>
     <input type="text" id="query" placeholder="اكتب سؤالك..." onkeydown="if(event.key==='Enter') search()">
     <button onclick="search()">ابحث</button>
     <div id="progress-container"><div id="progress-bar"></div></div>
@@ -298,11 +299,11 @@ function updateSearchStatusText() {
 
   searchStatusTimeouts.push(setTimeout(() => {
     statusElement.textContent = "أكثر من ثمانية ملايين نص...";
-  }, 8000)); // بعد 6 ثوانٍ (3 + 3)
+  }, 6000)); // بعد 6 ثوانٍ (3 + 3)
 
   searchStatusTimeouts.push(setTimeout(() => {
     statusElement.textContent = ""; // إخفاء النص
-  }, 11000)); // بعد 9 ثوانٍ (6 + 3)
+  }, 9000)); // بعد 9 ثوانٍ (6 + 3)
 }
 
 /**
