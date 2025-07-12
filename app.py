@@ -1,8 +1,8 @@
-# app.py – مع إرجاع نتائج النصوص والذكاء معًا + روابط دائمة + أسئلة سابقة
+# app.py – بحث مرحلتين تلقائيًا
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from elasticsearch import Elasticsearch
-from elasticsearch.exceptions import ConnectionError
+from elasticsearch.exceptions import ConnectionError, AuthenticationException
 from anthropic import Anthropic
 import os, sys, re
 
@@ -13,6 +13,7 @@ CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
 INDEX_NAME = "islamic_texts"
+
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
 claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
 
@@ -29,14 +30,6 @@ except Exception as e:
     print("Elastic error:", e)
     sys.exit(1)
 
-PREVIOUS_QUESTIONS = [
-  "ما حكم شد الرحال إلى قبر النبي؟",
-  "هل يشرع زيارة القبور؟",
-  "ما معنى حديث: من أحدث في أمرنا هذا؟",
-  "من هي أسماء بنت عميس؟",
-  "هل يجوز التوسل بالنبي؟"
-]
-
 @app.route("/ask")
 def ask():
     query = request.args.get("q", "").strip()
@@ -47,33 +40,40 @@ def ask():
     if not query:
         return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
-    should = [{"match_phrase": {"text_content": {"query": query, "boost": 100}}}]
-    es_query = {"bool": {"should": should, "minimum_should_match": 1}}
-
+    words = [w for w in re.findall(r"[\u0600-\u06FF]+", query) if len(w) > 2 and w not in AR_STOPWORDS]
     sources = []
+
+    def build_query(precise=True):
+        should = []
+        if precise:
+            should.append({"match_phrase": {"text_content": {"query": query, "boost": 100}}})
+        should += [{"match": {"text_content": {"query": w, "operator": "and", "boost": 10}}} for w in words]
+        return {"bool": {"should": should, "minimum_should_match": 1}}
+
     try:
         if mode != "ai_only":
-            res = es.search(index=INDEX_NAME, body={"query": es_query, "from": frm, "size": size})
-            for hit in res["hits"]["hits"]:
-                doc = hit["_source"]
-                sources.append({
-                    "id": hit.get("_id", ""),
-                    "book_title": doc.get("book_title", ""),
-                    "author_name": doc.get("author_name", ""),
-                    "part_number": doc.get("part_number", ""),
-                    "page_number": doc.get("page_number", ""),
-                    "text_content": doc.get("text_content", "")
-                })
+            for stage in [True, False]:
+                res = es.search(index=INDEX_NAME, body={"query": build_query(stage), "from": frm, "size": size, "sort": ["_score"]})
+                if res["hits"]["hits"]:
+                    for hit in res["hits"]["hits"]:
+                        doc = hit["_source"]
+                        sources.append({
+                            "book_title": doc.get("book_title", ""),
+                            "author_name": doc.get("author_name", ""),
+                            "part_number": doc.get("part_number", ""),
+                            "page_number": doc.get("page_number", ""),
+                            "text_content": doc.get("text_content", "")
+                        })
+                    break  # توقف إذا وُجدت نتائج
     except Exception as e:
         return jsonify({"error": f"Search failure: {e}"}), 500
 
     claude_answer = ""
     if mode in ("default", "ai_only") and claude_client:
         context = "\n\n".join([
-            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
-            for s in sources[:5]  # نرسل فقط أول 5 سياقات للذكاء
+            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}" for s in sources
         ])
-        prompt = f"أجب عن السؤال:\n{query}\n" + (f"استنادًا إلى النصوص التالية:\n{context}" if context else "")
+        prompt = f"أجب مباشرة عن السؤال:\n{query}\n" + (f"استنادًا إلى النصوص التالية:\n{context}" if context else "")
         try:
             msg = claude_client.messages.create(model="claude-3-5-sonnet-20241022", max_tokens=800, messages=[{"role": "user", "content": prompt}])
             claude_answer = msg.content[0].text.strip()
@@ -82,9 +82,16 @@ def ask():
 
     return jsonify({
         "claude_answer": claude_answer if mode != "full" else "",
-        "sources_retrieved": [] if mode == "ai_only" else sources,
-        "previous_questions": PREVIOUS_QUESTIONS if frm == 0 else []
+        "sources_retrieved": [] if mode == "ai_only" else sources
     })
+
+@app.route("/view/<doc_id>")
+def view(doc_id):
+    try:
+        res = es.get(index=INDEX_NAME, id=doc_id)
+        return jsonify(res["_source"])
+    except:
+        return jsonify({"error": "Document not found"}), 404
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
