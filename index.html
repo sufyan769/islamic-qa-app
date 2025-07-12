@@ -15,10 +15,8 @@
       <button id="searchBtn" class="bg-indigo-600 text-white px-5 py-3 rounded-lg hover:bg-indigo-700">بحث</button>
     </div>
 
-    <!-- عداد التحميل -->
-    <div id="progressContainer" class="w-full h-2 bg-gray-200 rounded mb-4 hidden">
-      <div id="progressBar" class="h-2 bg-indigo-500 rounded w-0"></div>
-    </div>
+    <!-- عداد التحميل الحقيقي -->
+    <div id="loadingText" class="text-center text-gray-500 hidden">🔄 جاري البحث... <span id="timer">0</span> ثوانٍ</div>
 
     <!-- سجل الأسئلة -->
     <div id="questionHistory" class="text-sm text-gray-600 space-y-1 mb-6"></div>
@@ -33,27 +31,6 @@
 <script>
 let previousQuestions = [];
 
-function updateProgressBar() {
-  const progress = document.getElementById('progressBar');
-  let value = 0;
-  progress.style.width = '0%';
-  document.getElementById('progressContainer').classList.remove('hidden');
-
-  const interval = setInterval(() => {
-    value += 2 + Math.random() * 5;
-    if (value >= 100) {
-      progress.style.width = '100%';
-      clearInterval(interval);
-      setTimeout(() => {
-        document.getElementById('progressContainer').classList.add('hidden');
-        progress.style.width = '0%';
-      }, 500);
-    } else {
-      progress.style.width = value + '%';
-    }
-  }, 100);
-}
-
 function runSearch() {
   const query = document.getElementById('searchInput').value.trim();
   if (!query) return;
@@ -64,11 +41,23 @@ function runSearch() {
   document.getElementById('aiAnswer').classList.add('hidden');
   document.getElementById('sourcesList').innerHTML = '';
 
-  updateProgressBar();
+  let timer = 0;
+  const loadingText = document.getElementById('loadingText');
+  const timerSpan = document.getElementById('timer');
+  loadingText.classList.remove('hidden');
+  timerSpan.textContent = timer;
+
+  const interval = setInterval(() => {
+    timer++;
+    timerSpan.textContent = timer;
+  }, 1000);
 
   fetch(`https://islamic-qa-api-backend.onrender.com/ask?q=${encodeURIComponent(query)}&mode=default`)
     .then(res => res.json())
     .then(data => {
+      clearInterval(interval);
+      loadingText.classList.add('hidden');
+
       if (data.claude_answer) {
         const aiDiv = document.getElementById('aiAnswer');
         aiDiv.innerHTML = `<div class='whitespace-pre-wrap'>${data.claude_answer}</div>`;
@@ -76,17 +65,23 @@ function runSearch() {
       }
 
       const list = document.getElementById('sourcesList');
-      data.sources_retrieved.forEach(src => {
+      data.sources_retrieved.forEach((src, i) => {
         const item = document.createElement('div');
         item.className = 'bg-gray-50 border p-3 rounded';
+        const fullId = `fulltext-${i}`;
         item.innerHTML = `
           <strong>${src.book_title}</strong> - ${src.author_name}<br>
-          <span class='text-sm text-gray-600'>
-            ${src.text_content.substring(0, 200)}...
-            <a href='/view/${src.id}' target='_blank' class='text-blue-600 underline'>رابط دائم</a>
-          </span>`;
+          <div class='text-sm text-gray-600'>
+            ${src.text_content.substring(0, 200)}... 
+            <button onclick="document.getElementById('${fullId}').classList.toggle('hidden')" class="text-blue-600 underline">عرض المزيد</button>
+            <div id="${fullId}" class="mt-2 hidden bg-white border rounded p-2 text-sm leading-relaxed">${src.text_content}</div>
+          </div>`;
         list.appendChild(item);
       });
+    })
+    .catch(() => {
+      clearInterval(interval);
+      loadingText.textContent = 'حدث خطأ أثناء جلب النتائج.';
     });
 }
 
