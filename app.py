@@ -5,6 +5,7 @@ from elasticsearch.exceptions import ConnectionError, AuthenticationException
 from anthropic import Anthropic
 import os, sys, re, requests
 import logging
+import json # تم إضافة هذا الاستيراد لـ json.dumps
 
 # تهيئة التسجيل (Logging) لتحسين تتبع الأخطاء
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -178,21 +179,46 @@ def get_contextual_text():
     """
     book_title = request.args.get("book_title")
     author_name = request.args.get("author_name")
-    current_part_number = int(request.args.get("current_part_number", 1))
-    current_page_number = int(request.args.get("current_page_number", 1))
+    current_part_number = request.args.get("current_part_number") # لا نحولها إلى int هنا مباشرة
+    current_page_number = request.args.get("current_page_number") # لا نحولها إلى int هنا مباشرة
     direction = request.args.get("direction") # 'next' أو 'prev'
 
-    logging.info(f"طلب نص سياقي: الكتاب='{book_title}', المؤلف='{author_name}', الجزء={current_part_number}, الصفحة={current_page_number}, الاتجاه='{direction}'")
+    logging.info(f"طلب نص سياقي: الكتاب='{book_title}', المؤلف='{author_name}', الجزء='{current_part_number}', الصفحة='{current_page_number}', الاتجاه='{direction}'")
 
-    if not all([book_title, author_name, direction]):
+    if not all([book_title, author_name, direction, current_part_number, current_page_number]):
         logging.warning("معلمات مفقودة لطلب النص السياقي.")
-        return jsonify({"error": "يرجى توفير عنوان الكتاب، اسم المؤلف، والاتجاه."}), 400
+        return jsonify({"error": "يرجى توفير عنوان الكتاب، اسم المؤلف، الجزء، الصفحة، والاتجاه."}), 400
+
+    try:
+        # تحويل أرقام الجزء والصفحة إلى أعداد صحيحة هنا
+        current_part_number = int(current_part_number)
+        current_page_number = int(current_page_number)
+    except ValueError:
+        logging.error("أرقام الجزء أو الصفحة غير صالحة.")
+        return jsonify({"error": "أرقام الجزء أو الصفحة يجب أن تكون أعدادًا صحيحة."}), 400
 
     try:
         # بناء استعلام المطابقة للكتاب والمؤلف
+        # استخدام multi_match لزيادة المرونة في مطابقة book_title و author_name
         match_clauses = [
-            {"match": {"book_title": {"query": book_title, "analyzer": "arabic"}}},
-            {"match": {"author_name": {"query": author_name, "analyzer": "arabic"}}}
+            {
+                "multi_match": {
+                    "query": book_title,
+                    "fields": ["book_title", "book_title.keyword"],
+                    "type": "best_fields",
+                    "operator": "and",
+                    "analyzer": "arabic"
+                }
+            },
+            {
+                "multi_match": {
+                    "query": author_name,
+                    "fields": ["author_name", "author_name.keyword"],
+                    "type": "best_fields",
+                    "operator": "and",
+                    "analyzer": "arabic"
+                }
+            }
         ]
 
         # بناء استعلام الفلترة للصفحة والجزء
@@ -244,7 +270,8 @@ def get_contextual_text():
                 {"part_number": {"order": sort_order}},
                 {"page_number": {"order": sort_order}}
             ],
-            "size": 1
+            "size": 1,
+            "min_score": 0.1 # لضمان استرجاع النتائج ذات الصلة فقط
         }
         
         logging.info(f"استعلام Elasticsearch للنص السياقي: {json.dumps(query_body, indent=2, ensure_ascii=False)}")
