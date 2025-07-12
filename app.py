@@ -1,4 +1,4 @@
-# app.py – تصحيح البحث وتضمين الأسئلة السابقة والروابط
+# app.py - نسخة مُصححة بالكامل مع دعم قائمة الأسئلة السابقة
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from elasticsearch import Elasticsearch
@@ -9,24 +9,29 @@ import os, sys, re
 app = Flask(__name__)
 CORS(app)
 
+# إعداد الاتصال بـ Elasticsearch
 CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
 INDEX_NAME = "islamic_texts"
 
+# مفتاح Claude
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
 claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
 
+# كلمات الوقف العربية الشائعة
 AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
 
+# قائمة أسئلة ثابتة لتحسين SEO
 PREVIOUS_QUESTIONS = [
-    "ما حكم شد الرحال إلى قبر النبي؟",
-    "هل تجوز الصلاة بغير وضوء؟",
-    "ما الفرق بين الحلال والحرام؟",
-    "هل يجوز تهنئة النصارى بأعيادهم؟",
-    "ما معنى قول الرسول صلى الله عليه وسلم؟"
+    "ما حكم شد الرحال إلى القبر النبوي؟",
+    "ما الفرق بين النبي والرسول؟",
+    "هل يجوز التوسل بالأنبياء؟",
+    "هل يجوز قراءة القرآن للموتى؟",
+    "ما معنى حديث: من بدل دينه فاقتلوه؟"
 ]
 
+# تهيئة Elasticsearch
 es = None
 try:
     if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
@@ -49,6 +54,7 @@ def ask():
     if not query:
         return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
+    # فقط match_phrase لتحسين الدقة
     should = [
         {"match_phrase": {"text_content": {"query": query, "boost": 100}}}
     ]
@@ -73,6 +79,7 @@ def ask():
     except Exception as e:
         return jsonify({"error": f"Search failure: {e}"}), 500
 
+    # إجابة Claude
     claude_answer = ""
     if mode in ("default", "ai_only") and claude_client:
         context = "\n\n".join([
@@ -80,11 +87,7 @@ def ask():
         ])
         prompt = f"أجب مباشرة عن السؤال:\n{query}\n" + (f"استنادًا إلى النصوص التالية:\n{context}" if context else "")
         try:
-            msg = claude_client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=800,
-                messages=[{"role": "user", "content": prompt}]
-            )
+            msg = claude_client.messages.create(model="claude-3-5-sonnet-20241022", max_tokens=800, messages=[{"role": "user", "content": prompt}])
             claude_answer = msg.content[0].text.strip()
         except Exception as e:
             claude_answer = f"Claude error: {e}"
