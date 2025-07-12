@@ -12,12 +12,10 @@ CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
 INDEX_NAME = "islamic_texts"
-
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
-claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
-
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
+claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
 AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
 
 es = None
@@ -30,6 +28,10 @@ try:
 except Exception as e:
     print("Elastic error:", e)
     sys.exit(1)
+
+@app.route("/")
+def index():
+    return "OK"
 
 @app.route("/ask", methods=["GET"])
 def ask():
@@ -101,10 +103,6 @@ def ask():
         "gemini_answer": gemini_answer if mode != "full" else "",
         "sources_retrieved": [] if mode == "ai_only" else sources
     })
-
-@app.route("/")
-def home():
-    return "OK", 200
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
