@@ -66,7 +66,8 @@ def ask():
         return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
     # تنظيف الاستعلام: استخراج الكلمات العربية وتصفية كلمات التوقف
-    words = [w for w w in re.findall(r"[\u0600-\u06FF]+", query) if len(w) > 2 and w not in AR_STOPWORDS]
+    # تم تصحيح الخطأ الإملائي هنا: كان "w for w w" وأصبح "w for w"
+    words = [w for w in re.findall(r"[\u0600-\u06FF]+", query) if len(w) > 2 and w not in AR_STOPWORDS]
     sources = [] # قائمة لتخزين المصادر المسترجعة من Elasticsearch
 
     def build_query(precise=True):
