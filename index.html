@@ -1,123 +1,98 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8">
-  <title>نظام البحث في الكتب الإسلامية</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 font-sans p-6">
-  <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6">
-    <h1 class="text-2xl font-bold text-indigo-700 text-center mb-6">نظام البحث في الكتب الإسلامية</h1>
+# app.py – بعد تنفيذ التحسين 1 و 2 + تخزين الأسئلة السابقة
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import ConnectionError, AuthenticationException
+from anthropic import Anthropic
+import os, sys, re, json
 
-    <!-- واجهة إدخال البحث -->
-    <div class="flex flex-col sm:flex-row gap-4 mb-4">
-      <input id="searchInput" type="text" placeholder="اكتب سؤالك أو عبارتك..." class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
-      <button onclick="runSearch('default')" class="bg-indigo-600 text-white px-5 py-3 rounded-lg hover:bg-indigo-700">بحث</button>
-    </div>
+app = Flask(__name__)
+CORS(app)
 
-    <!-- أزرار أنماط البحث -->
-    <div class="flex flex-wrap gap-3 justify-center mb-6">
-      <button onclick="runSearch('default')" class="px-4 py-2 bg-indigo-100 text-indigo-800 rounded-md font-semibold">بحث مختصر (ذكاء + 7 نتائج)</button>
-      <button onclick="runSearch('ai_only')" class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-md font-semibold">ذكاء فقط</button>
-      <button onclick="runSearch('full')" class="px-4 py-2 bg-green-100 text-green-800 rounded-md font-semibold">البحث الشامل في الكتب</button>
-    </div>
+CLOUD_ID = os.environ.get("CLOUD_ID")
+ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
+ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
+INDEX_NAME = "islamic_texts"
 
-    <!-- منطقة عرض النتائج -->
-    <div id="resultsArea" class="space-y-4">
-      <div id="loader" class="text-center text-gray-500 hidden">🔍 جاري البحث في الكتب...</div>
-      <div id="aiAnswer" class="bg-yellow-50 border border-yellow-300 p-4 rounded-md hidden"></div>
-      <div id="sourcesList" class="space-y-3"></div>
-      <div id="loadMoreContainer" class="text-center hidden">
-        <button onclick="loadMore()" class="mt-4 bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded">تحميل المزيد</button>
-      </div>
-    </div>
-  </div>
+CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
+claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
 
-<script>
-let currentMode = 'default';
-let lastQuery = '';
-let from = 0;
-const size = 20;
-const API_BASE = 'https://islamic-qa-api-backend.onrender.com';
+AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
 
-function runSearch(mode) {
-  const query = document.getElementById('searchInput').value.trim();
-  if (!query) return;
+es = None
+try:
+    if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
+        es = Elasticsearch(cloud_id=CLOUD_ID, basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD))
+        if not es.ping():
+            raise ValueError("Elastic unreachable")
+    else:
+        raise ValueError("Elastic env vars missing")
+except Exception as e:
+    print("Elastic error:", e)
+    sys.exit(1)
 
-  currentMode = mode;
-  lastQuery = query;
-  from = 0;
+# 🟡 قائمة الأسئلة السابقة (تحسين لمحركات البحث)
+PREVIOUS_QUESTIONS = [
+    "ما حكم شد الرحال إلى القبور؟",
+    "هل زيارة قبر النبي مشروعة؟",
+    "ما الفرق بين القبر والضريح؟",
+    "هل يجوز التوسل بالأموات؟",
+    "ما حكم المولد النبوي؟",
+    "أدلة تحريم السحر في الإسلام",
+    "من هي أسماء بنت عميس؟"
+]
 
-  document.getElementById('aiAnswer').classList.add('hidden');
-  document.getElementById('sourcesList').innerHTML = '';
-  document.getElementById('loadMoreContainer').classList.add('hidden');
-  document.getElementById('loader').classList.remove('hidden');
+@app.route("/ask")
+def ask():
+    query = request.args.get("q", "").strip()
+    mode = request.args.get("mode", "default")
+    frm = int(request.args.get("from", 0))
+    size = int(request.args.get("size", 20))
 
-  fetchResults();
-}
+    if not query:
+        return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
-function fetchResults() {
-  let url = `${API_BASE}/ask?q=${encodeURIComponent(lastQuery)}&from=${from}&size=${size}&mode=${currentMode}`;
+    should = [
+        {"match_phrase": {"text_content": {"query": query, "boost": 100}}}
+    ]
 
-  fetch(url)
-    .then(res => res.json())
-    .then(data => {
-      document.getElementById('loader').classList.add('hidden');
-      if (currentMode !== 'full' && data.claude_answer) {
-        const aiDiv = document.getElementById('aiAnswer');
-        aiDiv.innerHTML = `<div class='whitespace-pre-wrap'>${data.claude_answer}</div>`;
-        aiDiv.classList.remove('hidden');
-      }
+    es_query = {"bool": {"should": should, "minimum_should_match": 1}}
 
-      const list = document.getElementById('sourcesList');
-      if (data.sources_retrieved) {
-        data.sources_retrieved.forEach(src => {
-          const item = document.createElement('div');
-          item.className = 'bg-gray-50 border p-3 rounded';
-          item.innerHTML = `
-            <strong>${src.book_title}</strong> - ${src.author_name}<br>
-            <span class='text-sm text-gray-600'>
-              ${highlight(src.text_content, lastQuery, 200)}
-              <span class='text-blue-600 underline cursor-pointer' onclick='toggleFullText(this, ${JSON.stringify(src.text_content)})'>عرض النص كاملًا</span>
-              <div class='hidden full-text mt-2 text-sm text-gray-800'></div>
-            </span>`;
-          list.appendChild(item);
-        });
-      }
+    sources = []
+    try:
+        if mode != "ai_only":
+            res = es.search(index=INDEX_NAME, body={"query": es_query, "from": frm, "size": size, "sort": ["_score"]})
+            for hit in res["hits"]["hits"]:
+                doc = hit["_source"]
+                sources.append({
+                    "book_title": doc.get("book_title", ""),
+                    "author_name": doc.get("author_name", ""),
+                    "part_number": doc.get("part_number", ""),
+                    "page_number": doc.get("page_number", ""),
+                    "text_content": doc.get("text_content", ""),
+                    "score": hit.get("_score", 0),
+                    "id": hit.get("_id", "")  # لرابط دائم
+                })
+    except Exception as e:
+        return jsonify({"error": f"Search failure: {e}"}), 500
 
-      if (currentMode === 'full' && data.sources_retrieved.length === size) {
-        document.getElementById('loadMoreContainer').classList.remove('hidden');
-      }
+    claude_answer = ""
+    if mode in ("default", "ai_only") and claude_client:
+        context = "\n\n".join([
+            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}" for s in sources
+        ])
+        prompt = f"أجب مباشرة عن السؤال:\n{query}\n" + (f"استنادًا إلى النصوص التالية:\n{context}" if context else "")
+        try:
+            msg = claude_client.messages.create(model="claude-3-5-sonnet-20241022", max_tokens=800, messages=[{"role": "user", "content": prompt}])
+            claude_answer = msg.content[0].text.strip()
+        except Exception as e:
+            claude_answer = f"Claude error: {e}"
+
+    return jsonify({
+        "claude_answer": claude_answer if mode != "full" else "",
+        "sources_retrieved": [] if mode == "ai_only" else sources,
+        "previous_questions": PREVIOUS_QUESTIONS
     })
-    .catch(err => {
-      document.getElementById('loader').classList.add('hidden');
-      console.error('Fetch error:', err);
-    });
-}
 
-function loadMore() {
-  from += size;
-  fetchResults();
-}
-
-function toggleFullText(el, text) {
-  const div = el.parentNode.querySelector('.full-text');
-  div.textContent = text;
-  div.classList.toggle('hidden');
-}
-
-function highlight(text, query, maxLen = 200) {
-  const words = query.split(/\s+/).filter(w => w.length > 2);
-  let result = text.substring(0, maxLen);
-  for (let word of words) {
-    result = result.replace(new RegExp(word, 'gi'), match => `<mark class='bg-yellow-200'>${match}</mark>`);
-  }
-  return result;
-}
-
-document.getElementById('searchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') runSearch('default');
-});
-</script>
-</body>
-</html>
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
