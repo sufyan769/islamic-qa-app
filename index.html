@@ -32,7 +32,7 @@ function search() {
   updateProgress(0);
   simulateProgress();
 
-  fetch(`https://islamic-qa-api-backend.onrender.com/ask?q=${encodeURIComponent(q)}&mode=default`)
+  fetch(`/ask?q=${encodeURIComponent(q)}&mode=default`)
     .then(res => res.json())
     .then(data => {
       updateProgress(100);
@@ -41,26 +41,19 @@ function search() {
       if (data.sources_retrieved) {
         const html = data.sources_retrieved.map(doc => {
           const full = doc.text_content;
-          const short = full.slice(0, 180) + '...';
+          const short = full.slice(0, 200);
           const id = Math.random().toString(36).substring(7);
           return `<div class='result'>
-            <b>${doc.book_title}</b> - ${doc.author_name} <br>
-            <div id='short-${id}'>${short} <span class='more' onclick='showFull("${id}")'>عرض المزيد</span></div>
-            <div id='full-${id}' class='hidden'>${full}</div>
+            <b>${doc.book_title}</b> - ${doc.author_name}<br>
+            الجزء ${doc.part_number}، الصفحة ${doc.page_number}<br>
+            <div id='short-${id}'>${short}... <span class='more' onclick="toggleText('${id}', \
+              \`${full.replace(/`/g, '\\`')}\`) ">عرض المزيد</span></div>
+            <div id='full-${id}' class='hidden'></div>
           </div>`;
         }).join('');
         document.getElementById('results').innerHTML = html;
       }
-    })
-    .catch(err => {
-      updateProgress(100);
-      document.getElementById('results').innerHTML = "<div style='color:red;'>تعذّر تحميل النتائج. تحقق من الاتصال أو من صحة الرابط</div>";
     });
-}
-
-function showFull(id) {
-  document.getElementById(`short-${id}`).style.display = 'none';
-  document.getElementById(`full-${id}`).classList.remove('hidden');
 }
 
 function updateProgress(val) {
@@ -77,6 +70,12 @@ function simulateProgress() {
       clearInterval(interval);
     }
   }, 300);
+}
+
+function toggleText(id, fullText) {
+  document.getElementById('short-' + id).classList.add('hidden');
+  document.getElementById('full-' + id).innerHTML = fullText;
+  document.getElementById('full-' + id).classList.remove('hidden');
 }
 </script>
 </body>
