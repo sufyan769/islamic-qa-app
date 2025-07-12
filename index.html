@@ -17,7 +17,7 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
-      font-size: 1.15em; /* تم زيادة حجم الخط الأساسي هنا */
+      /* font-size: 1.15em; تم إزالة هذا السطر ليتم التحكم بحجم الخط عبر JavaScript */
     }
     .container {
       background: #ffffff;
@@ -33,7 +33,6 @@
       border: 1px solid #e0e0e0; /* حدود فاتحة جداً */
       border-radius: 6px;
       padding: 12px 15px;
-      /* font-size: 1.1em; */ /* تم إزالة هذا ليتبع حجم خط الجسم */
       font-size: 1.2em; /* تم زيادة حجم الخط قليلاً ليتناسب مع الجسم */
       width: 100%;
       box-sizing: border-box;
@@ -48,7 +47,6 @@
       color: white;
       padding: 12px 20px;
       border-radius: 6px;
-      /* font-size: 1.1em; */ /* تم إزالة هذا ليتبع حجم خط الجسم */
       font-size: 1.2em; /* تم زيادة حجم الخط قليلاً ليتناسب مع الجسم */
       cursor: pointer;
       transition: background-color 0.3s ease, transform 0.2s ease;
@@ -145,12 +143,40 @@
       background-color: #45a049;
       transform: translateY(-1px);
     }
+    /* أنماط أزرار التحكم بحجم الخط */
+    .font-size-controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px; /* مسافة بين الأزرار */
+      margin-bottom: 20px; /* مسافة أسفل عناصر التحكم */
+    }
+    .font-size-controls button {
+      background-color: #e0e0e0; /* لون رمادي فاتح */
+      color: #555;
+      padding: 8px 15px; /* حشوة أصغر قليلاً */
+      border-radius: 4px; /* حواف أقل استدارة */
+      font-size: 0.9em; /* حجم خط أصغر لأزرار التحكم */
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      border: none;
+      width: auto; /* لكي لا تأخذ العرض الكامل */
+    }
+    .font-size-controls button:hover {
+      background-color: #d0d0d0; /* لون رمادي أغمق عند التحويم */
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1 class="text-2xl font-bold text-center mb-6 text-gray-700">البحث في الكتب الإسلامية</h1>
-    <input type="text" id="query" placeholder="اكتب سؤالك..." onkeydown="if(event.key==='Enter') search()">
+
+    <!-- أزرار التحكم بحجم الخط -->
+    <div class="font-size-controls">
+      <button id="decreaseFont">تصغير الخط</button>
+      <button id="increaseFont">تكبير الخط</button>
+    </div>
+
+    <input type="text" id="query" placeholder="ابحث عن النص ..." onkeydown="if(event.key==='Enter') search()">
     <button onclick="search()">ابحث</button>
     <div id="progress-container"><div id="progress-bar"></div></div>
     <div class="loading-spinner" id="loadingSpinner"></div>
@@ -176,6 +202,12 @@ let searchStatusTimeouts = [];
 // متغيرات للتقسيم (Pagination)
 let currentFrom = 0;
 const PAGE_SIZE = 20; // عدد النتائج التي يتم جلبها في كل مرة
+
+// متغيرات للتحكم بحجم الخط
+let currentBaseFontSize = 1.15; // حجم الخط الأساسي الافتراضي (يتوافق مع 1.15em في CSS)
+const FONT_SIZE_STEP = 0.1; // مقدار الزيادة/النقصان في كل مرة (0.1em)
+const MIN_FONT_SIZE = 0.9; // الحد الأدنى لحجم الخط
+const MAX_FONT_SIZE = 1.5; // الحد الأقصى لحجم الخط
 
 /**
  * تبدأ عملية البحث عند إدخال المستخدم لاستعلام.
@@ -364,6 +396,40 @@ function clearSearchStatusText() {
   searchStatusTimeouts = [];
   document.getElementById('searchStatusText').textContent = "";
 }
+
+/**
+ * تحديث حجم الخط الأساسي لعنصر body.
+ */
+function updateBodyFontSize() {
+  document.body.style.fontSize = `${currentBaseFontSize}em`;
+}
+
+/**
+ * زيادة حجم الخط.
+ */
+function increaseFontSize() {
+  if (currentBaseFontSize < MAX_FONT_SIZE) {
+    currentBaseFontSize += FONT_SIZE_STEP;
+    updateBodyFontSize();
+  }
+}
+
+/**
+ * تقليل حجم الخط.
+ */
+function decreaseFontSize() {
+  if (currentBaseFontSize > MIN_FONT_SIZE) {
+    currentBaseFontSize -= FONT_SIZE_STEP;
+    updateBodyFontSize();
+  }
+}
+
+// إضافة مستمعي الأحداث لأزرار التحكم بحجم الخط عند تحميل DOM
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('increaseFont').addEventListener('click', increaseFontSize);
+  document.getElementById('decreaseFont').addEventListener('click', decreaseFontSize);
+  updateBodyFontSize(); // تعيين حجم الخط الأولي بناءً على currentBaseFontSize
+});
 </script>
 </body>
 </html>
