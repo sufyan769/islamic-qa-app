@@ -17,6 +17,7 @@
             flex-direction: column; /* لتكدس العناصر عموديا */
             align-items: center;
             min-height: 100vh;
+            font-size: 16px; /* حجم الخط الأساسي الافتراضي */
         }
         .container {
             background: #ffffff;
@@ -185,7 +186,7 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
         }
         #popularQuestionsList li::before {
-            content: "�"; /* أيقونة خفيفة */
+            content: "💡"; /* أيقونة خفيفة */
             margin-right: 8px;
             font-size: 1.1em;
         }
@@ -211,19 +212,48 @@
         .navigation-buttons button:hover {
             background-color: #45a049;
         }
+        /* أنماط أزرار تكبير/تصغير الخط */
+        .font-size-controls {
+            display: flex;
+            justify-content: flex-end; /* محاذاة لليمين */
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .font-size-controls button {
+            background-color: #9CA3AF; /* لون رمادي هادئ */
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            border: none;
+            width: auto;
+            margin-top: 0;
+        }
+        .font-size-controls button:hover {
+            background-color: #6B7280; /* رمادي أغمق عند التحويم */
+        }
     </style>
 </head>
 <body>
   <div class="container">
     <h1 class="text-2xl font-bold text-center mb-6 text-gray-700">البحث في الكتب الإسلامية</h1>
+    
+    <!-- أزرار تكبير/تصغير الخط -->
+    <div class="font-size-controls">
+        <button id="increaseFont">تكبير الخط</button>
+        <button id="decreaseFont">تصغير الخط</button>
+    </div>
+
     <div class="input-section">
         <div class="input-field">
-            <input type="text" id="questionInput" placeholder="اكتب سؤالك هنا..." onkeydown="if(event.key==='Enter') askQuestion()">
+            <input type="text" id="questionInput" placeholder="اكتب سؤالك هنا...">
         </div>
         <div class="input-field">
-            <input type="text" id="authorInput" placeholder="اسم المؤلف (اختياري)..." onkeydown="if(event.key==='Enter') askQuestion()">
+            <input type="text" id="authorInput" placeholder="اسم المؤلف (اختياري)...">
         </div>
-        <button id="askButton" onclick="askQuestion()">ابحث</button>
+        <button id="askButton">ابحث</button>
     </div>
     
     <div id="progress-container"><div id="progress-bar"></div></div>
@@ -265,13 +295,49 @@ const searchStatusText = document.getElementById('searchStatusText');
 const popularQuestionsSection = document.getElementById('popularQuestionsSection');
 const popularQuestionsList = document.getElementById('popularQuestionsList');
 
+// عناصر أزرار تكبير/تصغير الخط
+const increaseFontButton = document.getElementById('increaseFont');
+const decreaseFontButton = document.getElementById('decreaseFont');
+
 let db;
 let auth;
 let userId;
 let isAuthReady = false;
 
 // تهيئة Firebase باستخدام الكائنات العالمية
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+let firebaseConfig = {};
+try {
+    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+        firebaseConfig = JSON.parse(__firebase_config);
+    } else {
+        console.warn("Global __firebase_config not found or is empty. Using a placeholder config.");
+        // Placeholder config for local testing if __firebase_config is not provided by the environment
+        firebaseConfig = {
+            apiKey: "YOUR_FIREBASE_API_KEY", // Replace with your actual Firebase API Key
+            authDomain: "your-project-id.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project-id.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID",
+            measurementId: "YOUR_MEASUREMENT_ID"
+        };
+    }
+} catch (e) {
+    console.error("Error parsing __firebase_config:", e);
+    console.warn("Using a fallback placeholder config for Firebase initialization.");
+    firebaseConfig = {
+        apiKey: "YOUR_FIREBASE_API_KEY", 
+        authDomain: "your-project-id.firebaseapp.com",
+        projectId: "your-project-id",
+        storageBucket: "your-project-id.appspot.com",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID",
+        measurementId: "YOUR_MEASUREMENT_ID"
+    };
+}
+
+console.log("Firebase config used:", firebaseConfig); // Log the config for debugging
+
 const app = initializeApp(firebaseConfig);
 db = getFirestore(app);
 auth = getAuth(app);
@@ -684,6 +750,44 @@ function clearSearchStatusText() {
   searchStatusTimeouts = [];
   document.getElementById('searchStatusText').textContent = "";
 }
+
+// ------------------------------------------------------------------
+// وظائف تكبير وتصغير الخط
+let currentFontSize = 16; // حجم الخط الأساسي بالبكسل
+const FONT_SIZE_STEP = 2; // خطوة التغيير
+const MIN_FONT_SIZE = 12;
+const MAX_FONT_SIZE = 24;
+
+function updateBodyFontSize() {
+    document.body.style.fontSize = `${currentFontSize}px`;
+}
+
+increaseFontButton.addEventListener('click', () => {
+    if (currentFontSize < MAX_FONT_SIZE) {
+        currentFontSize += FONT_SIZE_STEP;
+        updateBodyFontSize();
+    }
+});
+
+decreaseFontButton.addEventListener('click', () => {
+    if (currentFontSize > MIN_FONT_SIZE) {
+        currentFontSize -= FONT_SIZE_STEP;
+        updateBodyFontSize();
+    }
+});
+
+// ------------------------------------------------------------------
+// ربط مستمعي الأحداث بعد تحميل DOM
+document.addEventListener('DOMContentLoaded', () => {
+    askButton.addEventListener('click', askQuestion);
+    questionInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') askQuestion();
+    });
+    authorInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') askQuestion();
+    });
+});
+
 </script>
 </body>
 </html>
