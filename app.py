@@ -1,4 +1,3 @@
-# app.py – بحث مرحلتين تلقائيًا + إجابة Claude وGemini
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from elasticsearch import Elasticsearch
@@ -32,7 +31,7 @@ except Exception as e:
     print("Elastic error:", e)
     sys.exit(1)
 
-@app.route("/ask")
+@app.route("/ask", methods=["GET"])
 def ask():
     query = request.args.get("q", "").strip()
     mode = request.args.get("mode", "default")
@@ -103,13 +102,9 @@ def ask():
         "sources_retrieved": [] if mode == "ai_only" else sources
     })
 
-@app.route("/view/<doc_id>")
-def view(doc_id):
-    try:
-        res = es.get(index=INDEX_NAME, id=doc_id)
-        return jsonify(res["_source"])
-    except:
-        return jsonify({"error": "Document not found"}), 404
+@app.route("/")
+def home():
+    return "OK", 200
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
