@@ -182,75 +182,75 @@ def get_contextual_text():
     current_page_number = int(request.args.get("current_page_number", 1))
     direction = request.args.get("direction") # 'next' أو 'prev'
 
+    logging.info(f"طلب نص سياقي: الكتاب='{book_title}', المؤلف='{author_name}', الجزء={current_part_number}, الصفحة={current_page_number}, الاتجاه='{direction}'")
+
     if not all([book_title, author_name, direction]):
         logging.warning("معلمات مفقودة لطلب النص السياقي.")
         return jsonify({"error": "يرجى توفير عنوان الكتاب، اسم المؤلف، والاتجاه."}), 400
 
     try:
+        # بناء استعلام المطابقة للكتاب والمؤلف
+        match_clauses = [
+            {"match": {"book_title": {"query": book_title, "analyzer": "arabic"}}},
+            {"match": {"author_name": {"query": author_name, "analyzer": "arabic"}}}
+        ]
+
+        # بناء استعلام الفلترة للصفحة والجزء
+        filter_clauses = []
+        sort_order = "asc"
+        
         if direction == 'next':
-            # البحث عن النص التالي: جزء أكبر، أو نفس الجزء وصفحة أكبر
-            query_body = {
-                "query": {
-                    "bool": {
-                        "must": [
-                            {"term": {"book_title.keyword": book_title}},
-                            {"term": {"author_name.keyword": author_name}}
-                        ],
-                        "filter": {
-                            "bool": {
-                                "should": [
-                                    {"range": {"part_number": {"gt": current_part_number}}},
-                                    {"bool": {
-                                        "must": [
-                                            {"term": {"part_number": current_part_number}},
-                                            {"range": {"page_number": {"gt": current_page_number}}}
-                                        ]
-                                    }}
-                                ]
-                            }
-                        }
-                    }
-                },
-                "sort": [
-                    {"part_number": {"order": "asc"}},
-                    {"page_number": {"order": "asc"}}
-                ],
-                "size": 1
-            }
+            filter_clauses.append({
+                "bool": {
+                    "should": [
+                        {"range": {"part_number": {"gt": current_part_number}}},
+                        {"bool": {
+                            "must": [
+                                {"term": {"part_number": current_part_number}},
+                                {"range": {"page_number": {"gt": current_page_number}}}
+                            ]
+                        }}
+                    ]
+                }
+            })
+            sort_order = "asc"
         elif direction == 'prev':
-            # البحث عن النص السابق: جزء أصغر، أو نفس الجزء وصفحة أصغر
-            query_body = {
-                "query": {
-                    "bool": {
-                        "must": [
-                            {"term": {"book_title.keyword": book_title}},
-                            {"term": {"author_name.keyword": author_name}}
-                        ],
-                        "filter": {
-                            "bool": {
-                                "should": [
-                                    {"range": {"part_number": {"lt": current_part_number}}},
-                                    {"bool": {
-                                        "must": [
-                                            {"term": {"part_number": current_part_number}},
-                                            {"range": {"page_number": {"lt": current_page_number}}}
-                                        ]
-                                    }}
-                                ]
-                            }
-                        }
-                    }
-                },
-                "sort": [
-                    {"part_number": {"order": "desc"}},
-                    {"page_number": {"order": "desc"}}
-                ],
-                "size": 1
-            }
+            filter_clauses.append({
+                "bool": {
+                    "should": [
+                        {"range": {"part_number": {"lt": current_part_number}}},
+                        {"bool": {
+                            "must": [
+                                {"term": {"part_number": current_part_number}},
+                                {"range": {"page_number": {"lt": current_page_number}}}
+                            ]
+                        }}
+                    ]
+                }
+            })
+            sort_order = "desc"
         else:
             return jsonify({"error": "الاتجاه غير صالح. يجب أن يكون 'next' أو 'prev'."}), 400
 
+        query_body = {
+            "query": {
+                "bool": {
+                    "must": match_clauses,
+                    "filter": filter_clauses
+                }
+            },
+            "_source": ["book_title", "author_name", "part_number", "page_number", "text_content"], # لضمان استرجاع هذه الحقول
+            "sort": [
+                {"part_number": {"order": sort_order}},
+                {"page_number": {"order": sort_order}}
+            ],
+            "size": 1
+        }
+        
+        logging.info(f"استعلام Elasticsearch للنص السياقي: {json.dumps(query_body, indent=2, ensure_ascii=False)}")
+
         res = es.search(index=INDEX_NAME, body=query_body)
+        logging.info(f"استجابة Elasticsearch للنص السياقي: {json.dumps(res, indent=2, ensure_ascii=False)}")
 
         if res["hits"]["hits"]:
             hit = res["hits"]["hits"][0]["_source"]
@@ -262,10 +262,13 @@ def get_contextual_text():
                 "text_content": hit.get("text_content", "")
             })
         else:
+            logging.info("لم يتم العثور على نص في هذا الاتجاه.")
             return jsonify({"message": "لم يتم العثور على نص في هذا الاتجاه."}), 404
 
     except Exception as e:
         logging.error(f"خطأ في جلب النص السياقي من Elasticsearch: {e}")
+        import traceback
+        traceback.print_exc() # طباعة تتبع الخطأ لمزيد من التفاصيل
         return jsonify({"error": f"فشل جلب النص السياقي: {e}"}), 500
 
 
