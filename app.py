@@ -1,4 +1,4 @@
-# app.py – تحسين البحث لتجاهل الكلمات الشائعة والقصيرة
+# app.py – تحسين البحث باستخدام text_content.ngram
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from elasticsearch import Elasticsearch
@@ -19,10 +19,10 @@ INDEX_NAME = "islamic_texts"
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
 claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
 
-# قائمة كلمات توقف عربية شائعة + كلمات قصيرة ≤2 حروف ستُستثنى من البحث المفصل
+# كلمات توقف شائعة
 AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
 
-# تهيئة Elasticsearch
+# تهيئة الاتصال
 es = None
 try:
     if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
@@ -45,12 +45,16 @@ def ask():
     if not query:
         return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
-    # تقسيم الكلمات مع استبعاد الوقف والكلمات القصيرة
     words = [w for w in re.findall(r"[\u0600-\u06FF]+", query) if len(w) > 2 and w not in AR_STOPWORDS]
 
-    # بناء الاستعلام – المطابقة الكاملة ثم الكلمات الجوهرية فقط
-    should = [{"match_phrase": {"text_content": {"query": query, "boost": 100}}}]
-    should += [{"match": {"text_content": {"query": w, "operator": "and", "boost": 10}}} for w in words]
+    # ✅ تعديل لاستخدام text_content.ngram
+    should = [
+        {"match_phrase": {"text_content.ngram": {"query": query, "boost": 100}}},
+        *[
+            {"match": {"text_content.ngram": {"query": w, "operator": "and", "boost": 10}}}
+            for w in words
+        ]
+    ]
 
     es_query = {"bool": {"should": should, "minimum_should_match": 1}}
 
@@ -70,7 +74,6 @@ def ask():
     except Exception as e:
         return jsonify({"error": f"Search failure: {e}"}), 500
 
-    # تحضير إجابة Claude إذا لزم الأمر
     claude_answer = ""
     if mode in ("default", "ai_only") and claude_client:
         context = "\n\n".join([
