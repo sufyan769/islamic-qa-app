@@ -1,3 +1,4 @@
+# ------------------- app.py -------------------
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from elasticsearch import Elasticsearch
@@ -8,6 +9,7 @@ import os, sys, re, requests
 app = Flask(__name__)
 CORS(app)
 
+# بيئة الاتصال
 CLOUD_ID = os.environ.get("CLOUD_ID")
 ELASTIC_USERNAME = os.environ.get("ELASTIC_USERNAME")
 ELASTIC_PASSWORD = os.environ.get("ELASTIC_PASSWORD")
@@ -16,10 +18,9 @@ INDEX_NAME = "islamic_texts"
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY")
 claude_client = Anthropic(api_key=CLAUDE_KEY) if CLAUDE_KEY else None
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-
 AR_STOPWORDS = {"من", "في", "على", "إلى", "عن", "ما", "إذ", "أو", "و", "ثم", "أن", "إن", "كان", "قد", "لم", "لن", "لا", "هذه", "هذا", "ذلك", "الذي", "التي", "ال"}
 
+# الاتصال بإيلاستك
 es = None
 try:
     if CLOUD_ID and ELASTIC_USERNAME and ELASTIC_PASSWORD:
@@ -34,10 +35,6 @@ except Exception as e:
 @app.route("/ask")
 def ask():
     query = request.args.get("q", "").strip()
-    mode = request.args.get("mode", "default")
-    frm = int(request.args.get("from", 0))
-    size = int(request.args.get("size", 20))
-
     if not query:
         return jsonify({"error": "يرجى إدخال استعلام."}), 400
 
@@ -52,53 +49,40 @@ def ask():
         return {"bool": {"should": should, "minimum_should_match": 1}}
 
     try:
-        if mode != "ai_only":
-            for stage in [True, False]:
-                res = es.search(index=INDEX_NAME, body={"query": build_query(stage), "from": frm, "size": size, "sort": ["_score"]})
-                if res["hits"]["hits"]:
-                    for hit in res["hits"]["hits"]:
-                        doc = hit["_source"]
-                        sources.append({
-                            "book_title": doc.get("book_title", ""),
-                            "author_name": doc.get("author_name", ""),
-                            "part_number": doc.get("part_number", ""),
-                            "page_number": doc.get("page_number", ""),
-                            "text_content": doc.get("text_content", "")
-                        })
-                    break
+        for stage in [True, False]:
+            res = es.search(index=INDEX_NAME, body={"query": build_query(stage), "size": 5})
+            if res["hits"]["hits"]:
+                for hit in res["hits"]["hits"]:
+                    doc = hit["_source"]
+                    sources.append({
+                        "book_title": doc.get("book_title", ""),
+                        "author_name": doc.get("author_name", ""),
+                        "part_number": doc.get("part_number", ""),
+                        "page_number": doc.get("page_number", ""),
+                        "text_content": doc.get("text_content", "")[:250] + "..."
+                    })
+                break
     except Exception as e:
         return jsonify({"error": f"Search failure: {e}"}), 500
 
     claude_answer = ""
-    if mode in ("default", "ai_only") and claude_client:
-        context = "\n\n".join([
-            f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
-            for s in sources
-        ])
-        prompt = f"أجب مباشرة عن السؤال:\n{query}\n" + (f"استنادًا إلى النصوص التالية:\n{context}" if context else "")
+    if claude_client:
         try:
-            msg = claude_client.messages.create(model="claude-3-5-sonnet-20241022", max_tokens=800, messages=[{"role": "user", "content": prompt}])
+            context = "\n\n".join([
+                f"الكتاب: {s['book_title']}\nالمؤلف: {s['author_name']}\nالجزء: {s['part_number']}\nالصفحة: {s['page_number']}\nالنص: {s['text_content']}"
+                for s in sources
+            ])
+            prompt = f"أجب باختصار عن السؤال التالي:\n{query}\n\nباستخدام النصوص التالية:\n{context}"
+            msg = claude_client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=600,
+                messages=[{"role": "user", "content": prompt}]
+            )
             claude_answer = msg.content[0].text.strip()
         except Exception as e:
             claude_answer = f"Claude error: {e}"
 
-    gemini_answer = ""
-    if mode in ("default", "ai_only") and GEMINI_API_KEY:
-        try:
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
-            gemini_payload = {
-                "contents": [{"parts": [{"text": f"أجب باختصار عن السؤال التالي: {query}"}]}]
-            }
-            g_res = requests.post(gemini_url, json=gemini_payload)
-            gemini_answer = g_res.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as e:
-            gemini_answer = f"Gemini error: {e}"
-
-    return jsonify({
-        "claude_answer": claude_answer if mode != "full" else "",
-        "gemini_answer": gemini_answer if mode != "full" else "",
-        "sources_retrieved": [] if mode == "ai_only" else sources
-    })
+    return jsonify({"claude_answer": claude_answer, "sources_retrieved": sources})
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
