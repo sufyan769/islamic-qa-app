@@ -65,23 +65,21 @@
       /* حجم الخط الأساسي للنتائج (سيتم تعديله بـ JS) */
       font-size: 16px; 
     }
-    .result b { /* للتحكم في حجم ولون عنوان الكتاب */
-      color: #1a202c; /* لون أغمق للعناوين */
-      font-size: 1.1em; /* حجم خط أصغر لعنوان الكتاب (نسبة إلى .result) */
-      display: block; /* لجعل الكتاب يأخذ سطرًا خاصًا به */
-      margin-bottom: 2px; /* مسافة صغيرة بعد عنوان الكتاب */
+    /* أنماط النص الرئيسي (المحتوى) */
+    .text-content-display {
+      color: #1a202c; /* لون أغمق للنص الرئيسي */
+      font-size: 1.3em; /* حجم خط أكبر للنص الرئيسي (نسبة إلى .result) */
+      font-weight: 600; /* خط سميك وواضح */
+      line-height: 1.6; /* تباعد أسطر جيد */
+      margin-bottom: 10px; /* مسافة بعد النص الرئيسي */
+      white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
     }
-    .result small { /* للمؤلف والجزء والصفحة */
+    /* أنماط معلومات الكتاب والمؤلف والصفحة */
+    .book-meta { 
       font-size: 0.9em; /* خط أصغر للمؤلف والجزء والصفحة (نسبة إلى .result) */
       color: #666; /* لون رمادي أفتح */
       display: block; /* لجعل المؤلف يأخذ سطرًا خاصًا به */
-      margin-bottom: 8px; /* مسافة بعد المؤلف */
-    }
-    .result p { /* للنص الفعلي */
-      margin-top: 0; /* إزالة المسافة العلوية */
-      line-height: 1.5; /* تباعد أسطر معتدل */
-      text-indent: 0; /* إزالة المسافة البادئة */
-      white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
+      margin-top: 8px; /* مسافة بعد النص الرئيسي */
     }
     .more {
       color: #2563eb; /* أزرق أغمق للرابط "عرض المزيد" */
@@ -329,18 +327,18 @@ async function search(append = false) {
         // تخزين النص الكامل في سمة بيانات (data-full-text)
         // وتخزين بيانات الكتاب للملاحة السياقية
         return `<div class='result'>
-          <b>الكتاب:</b> ${doc.book_title || 'غير معروف'} <br>
-          <b>المؤلف:</b> ${doc.author_name || 'غير معروف'} <br>
-          <small>الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}</small><br>
           <div id='short-${id}' 
                data-full-text="${encodeURIComponent(full)}"
                data-book-title="${encodeURIComponent(doc.book_title || '')}"
                data-author-name="${encodeURIComponent(doc.author_name || '')}"
                data-part-number="${encodeURIComponent(partNum)}"
                data-page-number="${encodeURIComponent(pageNum)}">
-               ${short} 
-               <span class='more' onclick="showFull('${id}')">عرض المزيد</span>
+               <p class="text-content-display">${short} 
+               <span class='more' onclick="showFull('${id}')">عرض المزيد</span></p>
           </div>
+          <small class="book-meta">
+            الكتاب: ${doc.book_title || 'غير معروف'}، المؤلف: ${doc.author_name || 'غير معروف'}، الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}
+          </small>
         </div>`;
       }).join('');
 
@@ -389,10 +387,11 @@ async function showFull(id) {
   const partNumber = shortElement.dataset.partNumber;
   const pageNumber = shortElement.dataset.pageNumber;
 
-  shortElement.innerHTML = fullText; // عرض النص الكامل
-
+  // تحديث النص في العنصر الرئيسي الذي يحمل النص
+  shortElement.querySelector('.text-content-display').innerHTML = fullText;
+  
   // إزالة أي أزرار تنقل سابقة لتجنب التكرار
-  const existingNavButtons = shortElement.nextElementSibling;
+  const existingNavButtons = shortElement.nextElementSibling; // الأزرار ستكون بعد الـ <small>
   if (existingNavButtons && existingNavButtons.classList.contains('navigation-buttons')) {
       existingNavButtons.remove();
   }
@@ -404,8 +403,8 @@ async function showFull(id) {
       <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'next', '${id}')">النص التالي</button>
     </div>
   `;
-  // إضافة الأزرار بعد النص الكامل مباشرة
-  shortElement.insertAdjacentHTML('afterend', navButtonsHtml);
+  // إضافة الأزرار بعد الـ <small> التي تحتوي على بيانات الكتاب
+  shortElement.closest('.result').querySelector('.book-meta').insertAdjacentHTML('afterend', navButtonsHtml);
 }
 
 /**
@@ -418,8 +417,10 @@ async function showFull(id) {
  * @param {string} originalElementId - معرف العنصر الأصلي لتحديثه.
  */
 async function getSequentialText(bookTitle, authorName, currentPartNumber, currentPageNumber, direction, originalElementId) {
-    const currentTextElement = document.getElementById('short-' + originalElementId);
-    const parentResultDiv = currentTextElement.closest('.result');
+    const currentTextElementContainer = document.getElementById('short-' + originalElementId);
+    const currentTextDisplayElement = currentTextElementContainer.querySelector('.text-content-display');
+    const parentResultDiv = currentTextElementContainer.closest('.result');
+    const bookMetaElement = parentResultDiv.querySelector('.book-meta');
     
     // إزالة أزرار التنقل السابقة لتجنب التكرار
     const existingNavButtons = parentResultDiv.querySelector('.navigation-buttons');
@@ -428,7 +429,7 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
     }
 
     // عرض مؤشر تحميل داخل العنصر الحالي
-    currentTextElement.innerHTML = `<div class="loading-spinner" style="display: block; margin: 10px auto;"></div><p class="text-center text-gray-500">جاري تحميل النص...</p>`;
+    currentTextDisplayElement.innerHTML = `<div class="loading-spinner" style="display: block; margin: 10px auto;"></div><p class="text-center text-gray-500">جاري تحميل النص...</p>`;
 
     try {
         // فك تشفير المعلمات قبل استخدامها في URL
@@ -456,23 +457,21 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             const newPageNumber = data.page_number;
 
             // تحديث النص في العنصر الحالي
-            currentTextElement.innerHTML = newText;
+            currentTextDisplayElement.innerHTML = newText;
             
             // تحديث سمات البيانات في العنصر لتعكس النص الجديد
             // التأكد من أن القيم المخزنة هي أرقام أو 0
             const updatedPartNum = (newPartNumber === "غير متوفر" || newPartNumber === null || newPartNumber === undefined || isNaN(newPartNumber)) ? 0 : newPartNumber;
             const updatedPageNum = (newPageNumber === "غير متوفر" || newPageNumber === null || newPageNumber === undefined || isNaN(newPageNumber)) ? 0 : newPageNumber;
 
-            currentTextElement.dataset.fullText = encodeURIComponent(newText); // تحديث النص الكامل المشفر
-            currentTextElement.dataset.bookTitle = encodeURIComponent(newBookTitle);
-            currentTextElement.dataset.authorName = encodeURIComponent(newAuthorName);
-            currentTextElement.dataset.partNumber = encodeURIComponent(updatedPartNum);
-            currentTextElement.dataset.pageNumber = encodeURIComponent(updatedPageNum);
+            currentTextElementContainer.dataset.fullText = encodeURIComponent(newText); // تحديث النص الكامل المشفر
+            currentTextElementContainer.dataset.bookTitle = encodeURIComponent(newBookTitle);
+            currentTextElementContainer.dataset.authorName = encodeURIComponent(newAuthorName);
+            currentTextElementContainer.dataset.partNumber = encodeURIComponent(updatedPartNum);
+            currentTextElementContainer.dataset.pageNumber = encodeURIComponent(updatedPageNum);
 
             // تحديث معلومات المصدر في الواجهة
-            parentResultDiv.querySelector('b:nth-of-type(1)').textContent = `الكتاب: ${newBookTitle || 'غير معروف'}`;
-            parentResultDiv.querySelector('b:nth-of-type(2)').textContent = `المؤلف: ${newAuthorName || 'غير معروف'}`;
-            parentResultDiv.querySelector('small').textContent = `الجزء: ${newPartNumber || 'غير متوفر'}، الصفحة: ${newPageNumber || 'غير متوفر'}`;
+            bookMetaElement.textContent = `الكتاب: ${newBookTitle || 'غير معروف'}، المؤلف: ${newAuthorName || 'غير معروف'}، الجزء: ${newPartNumber || 'غير متوفر'}، الصفحة: ${newPageNumber || 'غير متوفر'}`;
 
 
             // إعادة إضافة أزرار التنقل للنص الجديد
@@ -482,10 +481,10 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
                   <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(updatedPartNum)}', '${encodeURIComponent(updatedPageNum)}', 'next', '${originalElementId}')">النص التالي</button>
                 </div>
             `;
-            currentTextElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
+            bookMetaElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
 
         } else {
-            currentTextElement.innerHTML = `<p class='error'>${data.message || data.error || 'لم يتم العثور على نص في هذا الاتجاه.'}</p>`;
+            currentTextDisplayElement.innerHTML = `<p class='error'>${data.message || data.error || 'لم يتم العثور على نص في هذا الاتجاه.'}</p>`;
             // إعادة إضافة الأزرار حتى لو لم يتم العثور على نص جديد
             const newNavButtonsHtml = `
                 <div class="navigation-buttons">
@@ -493,11 +492,11 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
                   <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'next', '${originalElementId}')">النص التالي</button>
                 </div>
             `;
-            currentTextElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
+            bookMetaElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
         }
     } catch (error) {
         console.error('خطأ في جلب النص السياقي:', error);
-        currentTextElement.innerHTML = `<p class='error'>فشل تحميل النص: ${error.message || 'خطأ في الاتصال.'}</p>`;
+        currentTextDisplayElement.innerHTML = `<p class='error'>فشل تحميل النص: ${error.message || 'خطأ في الاتصال.'}</p>`;
         // إعادة إضافة الأزرار حتى لو حدث خطأ
         const newNavButtonsHtml = `
             <div class="navigation-buttons">
@@ -505,7 +504,7 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
               <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'next', '${originalElementId}')">النص التالي</button>
             </div>
         `;
-        currentTextElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
+        bookMetaElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
     }
 }
 
