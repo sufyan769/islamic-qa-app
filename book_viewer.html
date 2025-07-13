@@ -38,7 +38,7 @@
       text-align: center;
     }
     .book-content {
-      font-size: 1.1em;
+      font-size: 1.1em; /* حجم الخط الأساسي للمحتوى */
       line-height: 1.8;
       color: #555;
       white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
@@ -79,10 +79,41 @@
     .back-button:hover {
       background-color: #6B7280; /* رمادي أغمق عند التحويم */
     }
+    /* أنماط أزرار تكبير/تصغير الخط */
+    .font-size-controls {
+        display: flex;
+        justify-content: flex-end; /* محاذاة لليمين */
+        gap: 10px;
+        margin-bottom: 20px;
+        width: 100%;
+        max-width: 900px; /* لتقييد عرض الأزرار ضمن عرض الحاوية */
+    }
+    .font-size-controls button {
+        background-color: #9CA3AF; /* لون رمادي هادئ */
+        color: white;
+        padding: 8px 15px;
+        border-radius: 5px;
+        font-size: 15px; /* حجم خط ثابت لأزرار تكبير/تصغير */
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        border: none;
+        width: auto;
+        margin-top: 0;
+    }
+    .font-size-controls button:hover {
+        background-color: #6B7280; /* رمادي أغمق عند التحويم */
+    }
   </style>
 </head>
 <body>
   <a href="index.html" class="back-button">العودة إلى البحث</a>
+  
+  <!-- أزرار تكبير/تصغير الخط -->
+  <div class="font-size-controls">
+      <button id="increaseFont">تكبير الخط</button>
+      <button id="decreaseFont">تصغير الخط</button>
+  </div>
+
   <div class="book-container">
     <h1 id="bookViewerTitle" class="book-title"></h1>
     <div id="bookViewerContent" class="book-content">
@@ -94,13 +125,31 @@
 <script>
   const API_BASE_URL = "https://islamic-qa-api-backend.onrender.com"; // نفس رابط الواجهة الخلفية
 
+  // عناصر أزرار تكبير/تصغير الخط
+  const increaseFontButton = document.getElementById('increaseFont');
+  const decreaseFontButton = document.getElementById('decreaseFont');
+  const bookViewerContent = document.getElementById('bookViewerContent');
+
+  // متغيرات حجم الخط
+  let currentBookContentFontSize = 1.1; // حجم الخط الأساسي للـ .book-content بالـ em
+  const FONT_SIZE_STEP = 0.1; // خطوة التغيير بالـ em
+  const MIN_FONT_SIZE = 0.9; // الحد الأدنى لحجم الخط بالـ em
+  const MAX_FONT_SIZE = 1.5; // الحد الأقصى لحجم الخط بالـ em
+
+  /**
+   * دالة لتحديث حجم الخط لمحتوى الكتاب.
+   */
+  function updateBookContentFontSize() {
+      bookViewerContent.style.fontSize = `${currentBookContentFontSize}em`;
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const bookTitle = urlParams.get('book_title');
     const authorName = urlParams.get('author_name');
 
     const bookViewerTitle = document.getElementById('bookViewerTitle');
-    const bookViewerContent = document.getElementById('bookViewerContent');
+    // const bookViewerContent = document.getElementById('bookViewerContent'); // تم تعريفه بالفعل في النطاق الخارجي
 
     if (!bookTitle || !authorName) {
       bookViewerTitle.textContent = 'خطأ في تحميل الكتاب';
@@ -124,6 +173,24 @@
       console.error('خطأ في جلب الكتاب كاملاً:', error);
       bookViewerContent.innerHTML = `<p class="error-message">فشل الاتصال بالخادم لتحميل الكتاب كاملاً.</p>`;
     }
+
+    // ربط مستمعي الأحداث لأزرار تكبير/تصغير الخط بعد تحميل المحتوى
+    increaseFontButton.addEventListener('click', () => {
+        if (currentBookContentFontSize < MAX_FONT_SIZE) {
+            currentBookContentFontSize += FONT_SIZE_STEP;
+            updateBookContentFontSize();
+        }
+    });
+
+    decreaseFontButton.addEventListener('click', () => {
+        if (currentBookContentFontSize > MIN_FONT_SIZE) {
+            currentBookContentFontSize -= FONT_SIZE_STEP;
+            updateBookContentFontSize();
+        }
+    });
+
+    // تطبيق حجم الخط الأولي عند تحميل الصفحة
+    updateBookContentFontSize();
   });
 </script>
 </body>
