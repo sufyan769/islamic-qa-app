@@ -17,16 +17,16 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
-    }
-    .container {
-      background: #ffffff;
+      /* تم نقل بعض أنماط الـ container هنا لضمان بقاء المحتوى في المنتصف */
+      background: #ffffff; /* خلفية بيضاء للمحتوى الرئيسي */
       padding: 30px;
       border-radius: 8px; /* حواف أقل استدارة */
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* ظل خفيف جداً */
-      max-width: 800px;
-      width: 100%;
+      max-width: 800px; /* لتقييد عرض المحتوى */
+      width: 100%; /* لكي يأخذ العرض الكامل ضمن الـ max-width */
       margin-top: 20px;
       border: 1px solid #eee; /* حدود خفيفة جداً */
+      box-sizing: border-box; /* لضمان أن الـ padding لا يزيد العرض الكلي */
     }
     input[type="text"] {
       border: 1px solid #e0e0e0; /* حدود فاتحة جداً */
@@ -194,27 +194,26 @@
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1 class="text-2xl font-bold text-center mb-6 text-gray-700">البحث في الكتب الإسلامية</h1>
-    
-    <!-- أزرار تكبير/تصغير الخط -->
-    <div class="font-size-controls">
-        <button id="increaseFont">تكبير الخط</button>
-        <button id="decreaseFont">تصغير الخط</button>
-    </div>
+  <!-- تم حذف div.container -->
+  <h1 class="text-2xl font-bold text-center mb-6 text-gray-700">البحث في الكتب الإسلامية</h1>
+  
+  <!-- أزرار تكبير/تصغير الخط -->
+  <div class="font-size-controls">
+      <button id="increaseFont">تكبير الخط</button>
+      <button id="decreaseFont">تصغير الخط</button>
+  </div>
 
-    <input type="text" id="query" placeholder="ابحث عن النص ..." onkeydown="if(event.key==='Enter') search()">
-    <button onclick="search()">ابحث</button>
-    <div id="progress-container"><div id="progress-bar"></div></div>
-    <div class="loading-spinner" id="loadingSpinner"></div>
-    <div id="searchStatusText"></div> <!-- العنصر الجديد لرسائل حالة البحث -->
-    
-    <div id="results"></div>
+  <input type="text" id="query" placeholder="ابحث عن النص ..." onkeydown="if(event.key==='Enter') search()">
+  <button onclick="search()">ابحث</button>
+  <div id="progress-container"><div id="progress-bar"></div></div>
+  <div class="loading-spinner" id="loadingSpinner"></div>
+  <div id="searchStatusText"></div> <!-- العنصر الجديد لرسائل حالة البحث -->
+  
+  <div id="results"></div>
 
-    <!-- زر إظهار المزيد للتقسيم -->
-    <div id="showMoreContainer" class="hidden">
-      <button id="showMoreButton" onclick="search(true)">إظهار المزيد</button>
-    </div>
+  <!-- زر إظهار المزيد للتقسيم -->
+  <div id="showMoreContainer" class="hidden">
+    <button id="showMoreButton" onclick="search(true)">إظهار المزيد</button>
   </div>
 
 <script>
@@ -299,8 +298,8 @@ async function search(append = false) {
         // منطق تقليم النص: سطرين أو 200 حرف كحد أقصى إذا كان سطرًا واحدًا
         if (lines.length >= 2) {
           short = lines.slice(0, 2).join('<br>'); // أخذ أول سطرين وربطهما بفاصل سطر HTML
-          if (lines.length > 2) {
-            short += '...'; // إضافة ثلاث نقاط إذا كان هناك أكثر من سطرين
+          if (full.length > short.length) { // تحقق إذا كان النص الكامل أطول من النص المختصر
+            short += '...'; // إضافة ثلاث نقاط إذا كان هناك المزيد من النص
           }
         } else {
           // إذا كان النص أقل من سطرين (أي سطر واحد طويل)، قم بتقليمه بالأحرف
@@ -368,7 +367,7 @@ async function search(append = false) {
 }
 
 /**
- * تعرض النص الكامل للمصدر عند النقر على "عرض المزيد" وتضيف أزرار التنقل.
+ * تعرض النص الكامل للمصدر عند النقر على النص وتضيف أزرار التنقل.
  * @param {string} id - معرف العنصر الذي يحتوي على النص المختصر.
  */
 async function showFull(id) {
@@ -459,10 +458,10 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             const updatedPageNum = (newPageNumber === "غير متوفر" || newPageNumber === null || newPageNumber === undefined || isNaN(newPageNumber)) ? 0 : newPageNumber;
 
             currentTextElementContainer.dataset.fullText = encodeURIComponent(newText); // تحديث النص الكامل المشفر
-            currentTextElementContainer.dataset.book_title = encodeURIComponent(newBookTitle);
-            currentTextElementContainer.dataset.author_name = encodeURIComponent(newAuthorName);
-            currentTextElementContainer.dataset.part_number = encodeURIComponent(updatedPartNum);
-            currentTextElementContainer.dataset.page_number = encodeURIComponent(updatedPageNum);
+            currentTextElementContainer.dataset.bookTitle = encodeURIComponent(newBookTitle);
+            currentTextElementContainer.dataset.authorName = encodeURIComponent(newAuthorName);
+            currentTextElementContainer.dataset.partNumber = encodeURIComponent(updatedPartNum);
+            currentTextElementContainer.dataset.pageNumber = encodeURIComponent(updatedPageNum);
 
             // تحديث معلومات المصدر في الواجهة
             bookMetaElement.textContent = `الكتاب: ${newBookTitle || 'غير معروف'}، المؤلف: ${newAuthorName || 'غير معروف'}، الجزء: ${newPartNumber || 'غير متوفر'}، الصفحة: ${newPageNumber || 'غير متوفر'}`;
