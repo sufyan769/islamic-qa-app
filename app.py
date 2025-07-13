@@ -179,18 +179,21 @@ def get_contextual_text():
     """
     book_title = request.args.get("book_title")
     author_name = request.args.get("author_name")
-    current_part_number_str = request.args.get("current_part_number") 
-    current_page_number_str = request.args.get("current_page_number") 
+    # استخدام get مع قيمة افتراضية لسلاسل الأرقام
+    current_part_number_str = request.args.get("current_part_number", "1") # افتراضي 1
+    current_page_number_str = request.args.get("current_page_number", "1") # افتراضي 1
     direction = request.args.get("direction") # 'next' أو 'prev'
 
     logging.info(f"طلب نص سياقي: الكتاب='{book_title}', المؤلف='{author_name}', الجزء='{current_part_number_str}', الصفحة='{current_page_number_str}', الاتجاه='{direction}'")
 
-    if not all([book_title, author_name, direction, current_part_number_str, current_page_number_str]):
-        logging.warning("معلمات مفقودة لطلب النص السياقي.")
-        return jsonify({"error": "يرجى توفير عنوان الكتاب، اسم المؤلف، الجزء، الصفحة، والاتجاه."}), 400
+    # التحقق من المعلمات الأساسية فقط، والسماح لـ part/page بأن تكون قيمًا افتراضية
+    if not all([book_title, author_name, direction]):
+        logging.warning("معلمات أساسية مفقودة لطلب النص السياقي (الكتاب، المؤلف، الاتجاه).")
+        return jsonify({"error": "يرجى توفير عنوان الكتاب، اسم المؤلف، والاتجاه."}), 400
 
     try:
         # تحويل أرقام الجزء والصفحة إلى أعداد صحيحة هنا
+        # يجب أن تكون القيم الافتراضية قابلة للتحويل إلى أعداد صحيحة
         current_part_number = int(current_part_number_str)
         current_page_number = int(current_page_number_str)
     except ValueError:
