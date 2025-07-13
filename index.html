@@ -32,7 +32,7 @@
       outline: none;
       border-color: #60a5fa; /* لون أزرق فاتح عند التركيز */
     }
-    /* الأزرار */
+    /* الأزرار العامة */
     button {
       background-color: #60a5fa; /* لون أزرق فاتح أساسي */
       color: white;
@@ -172,26 +172,38 @@
     }
     /* أنماط أزرار التنقل بين النصوص السياقية */
     .navigation-buttons {
-        display: flex; /* إعادة إظهار الأزرار */
-        justify-content: space-between;
+        display: flex;
+        justify-content: center; /* لمركزة الأزرار أفقياً */
+        align-items: center;
+        flex-wrap: wrap; /* للسماح للأزرار بالانتقال إلى سطر جديد على الشاشات الصغيرة */
         margin-top: 15px;
-        gap: 10px;
-        width: 100%; /* تأخذ العرض الكامل للعنصر الأب */
+        gap: 5px; /* مسافة أقل بين الأزرار */
+        width: 100%;
     }
     .navigation-buttons button {
         background-color: #4CAF50; /* لون أخضر */
         color: white;
-        padding: 8px 15px;
+        padding: 5px 10px !important; /* بادينج أقل لجعل الزر أصغر */
         border-radius: 5px;
-        font-size: 15px; /* حجم خط ثابت لأزرار التنقل */
+        font-size: 0.8em !important; /* حجم خط أصغر */
         cursor: pointer;
         transition: background-color 0.3s ease;
         border: none;
-        width: auto; /* لكي لا يأخذ العرض الكامل */
-        margin-top: 0; /* إزالة المسافة العلوية الافتراضية للزر */
+        flex-grow: 0; /* منع الأزرار من التمدد لملء المساحة */
+        flex-shrink: 0; /* منع الأزرار من الانكماش */
+        width: auto !important; /* السماح للعرض بالتكيف مع المحتوى */
+        min-width: 80px; /* لضمان عدم تضييق الأزرار كثيرًا */
+        margin-top: 0 !important; /* إزالة المسافة العلوية الافتراضية للزر */
     }
     .navigation-buttons button:hover {
         background-color: #45a049;
+    }
+    /* تخصيص زر فتح الكتاب كاملاً ليكون في المنتصف */
+    .navigation-buttons .open-book-button {
+        background-color: #007bff; /* لون أزرق مختلف لتمييزه */
+    }
+    .navigation-buttons .open-book-button:hover {
+        background-color: #0056b3;
     }
   </style>
 </head>
@@ -241,6 +253,7 @@ const FONT_SIZE_STEP = 2; // خطوة التغيير
 const MIN_FONT_SIZE = 12;
 const MAX_FONT_SIZE = 24;
 
+
 /**
  * دالة لتحديث حجم الخط لعناصر النتائج.
  */
@@ -257,8 +270,12 @@ function updateTextFontSizes() {
  */
 async function search(append = false) {
   const q = document.getElementById('query').value.trim();
-  if (!q) {
+  // جلب قيمة المؤلف من حقل الإدخال
+  const author = document.getElementById('authorInput') ? document.getElementById('authorInput').value.trim() : '';
+
+  if (!q && !author) {
     // يمكن إضافة رسالة خطأ للمستخدم هنا إذا كان الاستعلام فارغًا
+    document.getElementById('results').innerHTML = "<p class='error'>يرجى إدخال استعلام أو اسم مؤلف.</p>";
     return;
   }
 
@@ -276,8 +293,20 @@ async function search(append = false) {
   updateSearchStatusText(); // بدء تحديث رسائل حالة البحث
 
   try {
-    // تضمين معلمات 'from' و 'size' لتقسيم النتائج
-    const response = await fetch(`${API_BASE_URL}/ask?q=${encodeURIComponent(q)}&mode=full&from=${currentFrom}&size=${PAGE_SIZE}`);
+    let apiUrl = `${API_BASE_URL}/ask?`;
+    const params = [];
+
+    if (q) {
+        params.push(`q=${encodeURIComponent(q)}`);
+    }
+    if (author) {
+        params.push(`author=${encodeURIComponent(author)}`);
+    }
+    params.push(`from=${currentFrom}`);
+    params.push(`size=${PAGE_SIZE}`);
+    apiUrl += params.join('&');
+
+    const response = await fetch(apiUrl);
     const data = await response.json();
 
     updateProgress(100); // اكتمال التقدم
@@ -393,11 +422,13 @@ async function showFull(id) {
       existingNavButtons.remove();
   }
 
-  // إضافة أزرار التنقل
+  // إضافة أزرار التنقل و زر فتح الكتاب كاملاً (يوجه لصفحة جديدة)
+  // الترتيب: النص التالي (يسار)، فتح الكتاب كاملاً (وسط)، النص السابق (يمين)
   const navButtonsHtml = `
     <div class="navigation-buttons">
-      <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'prev', '${id}')">النص السابق</button>
       <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'next', '${id}')">النص التالي</button>
+      <button class="open-book-button" onclick="viewFullBook('${bookTitle}', '${authorName}')">فتح الكتاب كاملاً</button>
+      <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'prev', '${id}')">النص السابق</button>
     </div>
   `;
   // إضافة الأزرار بعد الـ <small> التي تحتوي على بيانات الكتاب
@@ -419,7 +450,7 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
     const parentResultDiv = currentTextElementContainer.closest('.result');
     const bookMetaElement = parentResultDiv.querySelector('.book-meta');
     
-    // إزالة أزرار التنقل السابقة لتجنب التكرار
+    // إزالة أي أزرار تنقل سابقة لتجنب التكرار
     const existingNavButtons = parentResultDiv.querySelector('.navigation-buttons');
     if (existingNavButtons) {
         existingNavButtons.remove();
@@ -474,8 +505,9 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             // إعادة إضافة أزرار التنقل للنص الجديد
             const newNavButtonsHtml = `
                 <div class="navigation-buttons">
-                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(updatedPartNum)}', '${encodeURIComponent(updatedPageNum)}', 'prev', '${originalElementId}')">النص السابق</button>
                   <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(updatedPartNum)}', '${encodeURIComponent(updatedPageNum)}', 'next', '${originalElementId}')">النص التالي</button>
+                  <button class="open-book-button" onclick="viewFullBook('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}')">فتح الكتاب كاملاً</button>
+                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(updatedPartNum)}', '${encodeURIComponent(updatedPageNum)}', 'prev', '${originalElementId}')">النص السابق</button>
                 </div>
             `;
             bookMetaElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
@@ -485,8 +517,9 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             // إعادة إضافة الأزرار حتى لو لم يتم العثور على نص جديد
             const newNavButtonsHtml = `
                 <div class="navigation-buttons">
-                  <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'prev', '${originalElementId}')">النص السابق</button>
                   <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'next', '${originalElementId}')">النص التالي</button>
+                  <button class="open-book-button" onclick="viewFullBook('${bookTitle}', '${authorName}')">فتح الكتاب كاملاً</button>
+                  <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'prev', '${originalElementId}')">النص السابق</button>
                 </div>
             `;
             bookMetaElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
@@ -497,8 +530,9 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
         // إعادة إضافة الأزرار حتى لو حدث خطأ
         const newNavButtonsHtml = `
             <div class="navigation-buttons">
-              <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'prev', '${originalElementId}')">النص السابق</button>
               <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'next', '${originalElementId}')">النص التالي</button>
+              <button class="open-book-button" onclick="viewFullBook('${bookTitle}', '${authorName}')">فتح الكتاب كاملاً</button>
+              <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'prev', '${originalElementId}')">النص السابق</button>
             </div>
         `;
         bookMetaElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
@@ -576,6 +610,18 @@ function clearSearchStatusText() {
   searchStatusTimeouts = [];
   document.getElementById('searchStatusText').textContent = "";
 }
+
+/**
+ * توجيه المستخدم إلى صفحة عرض الكتاب كاملاً.
+ * @param {string} bookTitle - عنوان الكتاب.
+ * @param {string} authorName - اسم المؤلف.
+ */
+function viewFullBook(bookTitle, authorName) {
+    // بناء رابط URL لصفحة book_viewer.html مع معلمات الكتاب والمؤلف
+    const url = `book_viewer.html?book_title=${encodeURIComponent(bookTitle)}&author_name=${encodeURIComponent(authorName)}`;
+    window.open(url, '_blank'); // فتح الرابط في علامة تبويب جديدة
+}
+
 
 // ------------------------------------------------------------------
 // ربط مستمعي الأحداث بعد تحميل DOM
