@@ -73,6 +73,7 @@
       line-height: 1.6; /* تباعد أسطر جيد */
       margin-bottom: 10px; /* مسافة بعد النص الرئيسي */
       white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
+      cursor: pointer; /* للإشارة إلى أن النص قابل للنقر */
     }
     /* أنماط معلومات الكتاب والمؤلف والصفحة */
     .book-meta { 
@@ -80,14 +81,6 @@
       color: #666; /* لون رمادي أفتح */
       display: block; /* لجعل المؤلف يأخذ سطرًا خاصًا به */
       margin-top: 8px; /* مسافة بعد النص الرئيسي */
-    }
-    .more {
-      color: #2563eb; /* أزرق أغمق للرابط "عرض المزيد" */
-      cursor: pointer;
-      display: inline-block;
-      margin-top: 10px;
-      font-weight: 600;
-      text-decoration: underline;
     }
     .hidden {
       display: none !important; /* استخدام !important لضمان الإخفاء */
@@ -333,8 +326,8 @@ async function search(append = false) {
                data-author-name="${encodeURIComponent(doc.author_name || '')}"
                data-part-number="${encodeURIComponent(partNum)}"
                data-page-number="${encodeURIComponent(pageNum)}">
-               <p class="text-content-display">${short} 
-               <span class='more' onclick="showFull('${id}')">عرض المزيد</span></p>
+               <p class="text-content-display" onclick="showFull('${id}')">${short} 
+               </p>
           </div>
           <small class="book-meta">
             الكتاب: ${doc.book_title || 'غير معروف'}، المؤلف: ${doc.author_name || 'غير معروف'}، الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}
@@ -468,7 +461,7 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             currentTextElementContainer.dataset.bookTitle = encodeURIComponent(newBookTitle);
             currentTextElementContainer.dataset.authorName = encodeURIComponent(newAuthorName);
             currentTextElementContainer.dataset.partNumber = encodeURIComponent(updatedPartNum);
-            currentTextElementContainer.dataset.pageNumber = encodeURIComponent(updatedPageNum);
+            currentTextElementContainer.dataset.page_number = encodeURIComponent(updatedPageNum);
 
             // تحديث معلومات المصدر في الواجهة
             bookMetaElement.textContent = `الكتاب: ${newBookTitle || 'غير معروف'}، المؤلف: ${newAuthorName || 'غير معروف'}، الجزء: ${newPartNumber || 'غير متوفر'}، الصفحة: ${newPageNumber || 'غير متوفر'}`;
