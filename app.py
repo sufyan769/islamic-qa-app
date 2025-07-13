@@ -180,8 +180,8 @@ def get_contextual_text():
     book_title = request.args.get("book_title")
     author_name = request.args.get("author_name")
     # استخدام get مع قيمة افتراضية لسلاسل الأرقام
-    current_part_number_str = request.args.get("current_part_number", "1") # افتراضي 1
-    current_page_number_str = request.args.get("current_page_number", "1") # افتراضي 1
+    current_part_number_str = request.args.get("current_part_number", "0") # افتراضي 0
+    current_page_number_str = request.args.get("current_page_number", "0") # افتراضي 0
     direction = request.args.get("direction") # 'next' أو 'prev'
 
     logging.info(f"طلب نص سياقي: الكتاب='{book_title}', المؤلف='{author_name}', الجزء='{current_part_number_str}', الصفحة='{current_page_number_str}', الاتجاه='{direction}'")
@@ -198,6 +198,8 @@ def get_contextual_text():
         current_page_number = int(current_page_number_str)
     except ValueError:
         logging.error(f"أرقام الجزء أو الصفحة غير صالحة: part='{current_part_number_str}', page='{current_page_number_str}'")
+        # إذا كانت القيم غير صالحة، يمكننا محاولة تعيينها إلى قيم افتراضية آمنة
+        # أو إرجاع خطأ واضح للواجهة الأمامية
         return jsonify({"error": "أرقام الجزء أو الصفحة يجب أن تكون أعدادًا صحيحة."}), 400
 
     try:
