@@ -384,8 +384,9 @@ async function showFull(id) {
   shortElement.querySelector('.text-content-display').innerHTML = fullText;
   
   // إزالة أي أزرار تنقل سابقة لتجنب التكرار
-  const existingNavButtons = shortElement.nextElementSibling; // الأزرار ستكون بعد الـ <small>
-  if (existingNavButtons && existingNavButtons.classList.contains('navigation-buttons')) {
+  const parentResultDiv = shortElement.closest('.result');
+  const existingNavButtons = parentResultDiv.querySelector('.navigation-buttons');
+  if (existingNavButtons) {
       existingNavButtons.remove();
   }
 
@@ -458,9 +459,9 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             const updatedPageNum = (newPageNumber === "غير متوفر" || newPageNumber === null || newPageNumber === undefined || isNaN(newPageNumber)) ? 0 : newPageNumber;
 
             currentTextElementContainer.dataset.fullText = encodeURIComponent(newText); // تحديث النص الكامل المشفر
-            currentTextElementContainer.dataset.bookTitle = encodeURIComponent(newBookTitle);
-            currentTextElementContainer.dataset.authorName = encodeURIComponent(newAuthorName);
-            currentTextElementContainer.dataset.partNumber = encodeURIComponent(updatedPartNum);
+            currentTextElementContainer.dataset.book_title = encodeURIComponent(newBookTitle);
+            currentTextElementContainer.dataset.author_name = encodeURIComponent(newAuthorName);
+            currentTextElementContainer.dataset.part_number = encodeURIComponent(updatedPartNum);
             currentTextElementContainer.dataset.page_number = encodeURIComponent(updatedPageNum);
 
             // تحديث معلومات المصدر في الواجهة
