@@ -81,8 +81,6 @@
       margin-top: 0; /* إزالة المسافة العلوية */
       line-height: 1.5; /* تباعد أسطر معتدل */
       text-indent: 0; /* إزالة المسافة البادئة */
-      /* تم إزالة display: -webkit-box و -webkit-line-clamp هنا
-         لأن showFull سيتولى عرض النص بالكامل */
       white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
     }
     .more {
@@ -182,7 +180,7 @@
     }
     /* أنماط أزرار التنقل بين النصوص السياقية */
     .navigation-buttons {
-        display: flex;
+        display: flex; /* إعادة إظهار الأزرار */
         justify-content: space-between;
         margin-top: 15px;
         gap: 10px;
@@ -323,6 +321,11 @@ async function search(append = false) {
         
         const id = Math.random().toString(36).substring(7); // معرف فريد لكل مصدر
         
+        // تحويل part_number و page_number إلى أرقام أو 0 إذا كانت "غير متوفر" أو null
+        // هذا هو التعديل الذي يضمن إرسال قيم رقمية للواجهة الخلفية
+        const partNum = (doc.part_number === "غير متوفر" || doc.part_number === null || doc.part_number === undefined || isNaN(doc.part_number)) ? 0 : doc.part_number;
+        const pageNum = (doc.page_number === "غير متوفر" || doc.page_number === null || doc.page_number === undefined || isNaN(doc.page_number)) ? 0 : doc.page_number;
+
         // تخزين النص الكامل في سمة بيانات (data-full-text)
         // وتخزين بيانات الكتاب للملاحة السياقية
         return `<div class='result'>
@@ -333,8 +336,8 @@ async function search(append = false) {
                data-full-text="${encodeURIComponent(full)}"
                data-book-title="${encodeURIComponent(doc.book_title || '')}"
                data-author-name="${encodeURIComponent(doc.author_name || '')}"
-               data-part-number="${encodeURIComponent(doc.part_number || '')}"
-               data-page-number="${encodeURIComponent(doc.page_number || '')}">
+               data-part-number="${encodeURIComponent(partNum)}"
+               data-page-number="${encodeURIComponent(pageNum)}">
                ${short} 
                <span class='more' onclick="showFull('${id}')">عرض المزيد</span>
           </div>
@@ -381,7 +384,6 @@ async function showFull(id) {
   const shortElement = document.getElementById('short-' + id);
   const fullText = decodeURIComponent(shortElement.dataset.fullText);
   
-  // لا يتم فك تشفير هذه المعلمات هنا، لأنها ستُفك تشفيرها في دالة getSequentialText
   const bookTitle = shortElement.dataset.bookTitle;
   const authorName = shortElement.dataset.authorName;
   const partNumber = shortElement.dataset.partNumber;
@@ -432,8 +434,9 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
         // فك تشفير المعلمات قبل استخدامها في URL
         const decodedBookTitle = decodeURIComponent(bookTitle);
         const decodedAuthorName = decodeURIComponent(authorName);
-        const decodedPartNumber = decodeURIComponent(currentPartNumber);
-        const decodedPageNumber = decodeURIComponent(currentPageNumber);
+        // التأكد من أن القيم رقمية قبل فك التشفير وإرسالها
+        const decodedPartNumber = parseInt(decodeURIComponent(currentPartNumber)) || 0;
+        const decodedPageNumber = parseInt(decodeURIComponent(currentPageNumber)) || 0;
 
         const apiUrl = `${API_BASE_URL}/get_contextual_text?` +
                        `book_title=${encodeURIComponent(decodedBookTitle)}&` +
@@ -456,11 +459,15 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             currentTextElement.innerHTML = newText;
             
             // تحديث سمات البيانات في العنصر لتعكس النص الجديد
+            // التأكد من أن القيم المخزنة هي أرقام أو 0
+            const updatedPartNum = (newPartNumber === "غير متوفر" || newPartNumber === null || newPartNumber === undefined || isNaN(newPartNumber)) ? 0 : newPartNumber;
+            const updatedPageNum = (newPageNumber === "غير متوفر" || newPageNumber === null || newPageNumber === undefined || isNaN(newPageNumber)) ? 0 : newPageNumber;
+
             currentTextElement.dataset.fullText = encodeURIComponent(newText); // تحديث النص الكامل المشفر
             currentTextElement.dataset.bookTitle = encodeURIComponent(newBookTitle);
             currentTextElement.dataset.authorName = encodeURIComponent(newAuthorName);
-            currentTextElement.dataset.partNumber = encodeURIComponent(newPartNumber);
-            currentTextElement.dataset.pageNumber = encodeURIComponent(newPageNumber);
+            currentTextElement.dataset.partNumber = encodeURIComponent(updatedPartNum);
+            currentTextElement.dataset.pageNumber = encodeURIComponent(updatedPageNum);
 
             // تحديث معلومات المصدر في الواجهة
             parentResultDiv.querySelector('b:nth-of-type(1)').textContent = `الكتاب: ${newBookTitle || 'غير معروف'}`;
@@ -471,8 +478,8 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             // إعادة إضافة أزرار التنقل للنص الجديد
             const newNavButtonsHtml = `
                 <div class="navigation-buttons">
-                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(newPartNumber)}', '${encodeURIComponent(newPageNumber)}', 'prev', '${originalElementId}')">النص السابق</button>
-                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(newPartNumber)}', '${encodeURIComponent(newPageNumber)}', 'next', '${originalElementId}')">النص التالي</button>
+                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(updatedPartNum)}', '${encodeURIComponent(updatedPageNum)}', 'prev', '${originalElementId}')">النص السابق</button>
+                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(updatedPartNum)}', '${encodeURIComponent(updatedPageNum)}', 'next', '${originalElementId}')">النص التالي</button>
                 </div>
             `;
             currentTextElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
