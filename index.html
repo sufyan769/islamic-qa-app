@@ -205,6 +205,41 @@
     .navigation-buttons .open-book-button:hover {
         background-color: #0056b3;
     }
+    /* أنماط خاصة بعرض نتائج الحديث */
+    .hadith-info-section {
+        background-color: #e6f7ff; /* خلفية زرقاء فاتحة للقسم */
+        border: 1px solid #91d5ff;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 20px;
+        color: #003a61;
+    }
+    .hadith-info-section h2 {
+        font-weight: bold;
+        margin-bottom: 15px;
+        font-size: 1.2em;
+        color: #00274e;
+        text-align: center;
+        border-bottom: 1px solid #a6e3ff;
+        padding-bottom: 10px;
+    }
+    .explanation-section {
+        background-color: #e0ffe0; /* خلفية خضراء فاتحة للشرح */
+        border: 1px solid #99e699;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 20px;
+        color: #004d00;
+    }
+    .explanation-section h2 {
+        font-weight: bold;
+        margin-bottom: 15px;
+        font-size: 1.2em;
+        color: #003300;
+        text-align: center;
+        border-bottom: 1px solid #b3ffb3;
+        padding-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -219,12 +254,34 @@
     </div>
 
     <input type="text" id="query" placeholder="ابحث عن النص ..." onkeydown="if(event.key==='Enter') search()">
+    
+    <!-- خيار البحث عن حديث -->
+    <div class="search-options mt-4 flex items-center justify-end">
+        <input type="checkbox" id="hadithSearchCheckbox" class="ml-2">
+        <label for="hadithSearchCheckbox" class="text-gray-700 text-sm">بحث عن حديث</label>
+    </div>
+
     <button onclick="search()">ابحث</button>
     <div id="progress-container"><div id="progress-bar"></div></div>
     <div class="loading-spinner" id="loadingSpinner"></div>
     <div id="searchStatusText"></div> <!-- العنصر الجديد لرسائل حالة البحث -->
     
-    <div id="results"></div>
+    <!-- منطقة عرض نتائج الأحاديث -->
+    <div id="hadithResultsSection" class="hadith-info-section hidden">
+        <h2>نتائج الأحاديث</h2>
+        <div id="hadithResults"></div>
+    </div>
+
+    <!-- منطقة عرض شروح الأحاديث -->
+    <div id="explanationResultsSection" class="explanation-section hidden">
+        <h2>شروح الأحاديث ذات الصلة</h2>
+        <div id="explanationResults"></div>
+    </div>
+
+    <!-- منطقة عرض النتائج العامة (إذا لم يكن وضع الحديث مفعلاً) -->
+    <div id="generalResultsSection">
+        <div id="results"></div>
+    </div>
 
     <!-- زر إظهار المزيد للتقسيم -->
     <div id="showMoreContainer" class="hidden">
@@ -233,7 +290,7 @@
   </div>
 
 <script>
-// عنوان API الخلفية. يمكن تغيير هذا إذا تم نشر الخلفية في مكان آخر.
+// عنوان API الخلفية.
 const API_BASE_URL = "https://islamic-qa-api-backend.onrender.com";
 
 // متغير لتخزين معرفات setTimeout لرسائل حالة البحث
@@ -253,6 +310,32 @@ const FONT_SIZE_STEP = 2; // خطوة التغيير
 const MIN_FONT_SIZE = 12;
 const MAX_FONT_SIZE = 24;
 
+// عناصر عرض أقسام النتائج
+const hadithResultsSection = document.getElementById('hadithResultsSection');
+const hadithResults = document.getElementById('hadithResults');
+const explanationResultsSection = document.getElementById('explanationResultsSection');
+const explanationResults = document.getElementById('explanationResults');
+const generalResultsSection = document.getElementById('generalResultsSection');
+const resultsContainer = document.getElementById('results'); // تم تغيير الاسم لتجنب التضارب
+
+
+/**
+ * دالة لتمييز كلمات البحث في النص.
+ * @param {string} text - النص الأصلي.
+ * @param {string} query - استعلام البحث.
+ * @returns {string} النص مع الكلمات المميزة.
+ */
+function highlightText(text, query) {
+    if (!query || !text) return text;
+    const queryWords = query.split(/\s+/).filter(word => word.length > 0);
+    if (queryWords.length === 0) return text;
+
+    const regex = new RegExp(queryWords.map(word => {
+        return word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }).join('|'), 'gi'); 
+
+    return text.replace(regex, (match) => `<span class="highlight">${match}</span>`);
+}
 
 /**
  * دالة لتحديث حجم الخط لعناصر النتائج.
@@ -270,131 +353,182 @@ function updateTextFontSizes() {
  */
 async function search(append = false) {
   const q = document.getElementById('query').value.trim();
-  // جلب قيمة المؤلف من حقل الإدخال
   const author = document.getElementById('authorInput') ? document.getElementById('authorInput').value.trim() : '';
+  const hadithMode = document.getElementById('hadithSearchCheckbox').checked;
 
   if (!q && !author) {
-    // يمكن إضافة رسالة خطأ للمستخدم هنا إذا كان الاستعلام فارغًا
-    document.getElementById('results').innerHTML = "<p class='error'>يرجى إدخال استعلام أو اسم مؤلف.</p>";
+    resultsContainer.innerHTML = "<p class='error'>يرجى إدخال استعلام أو اسم مؤلف.</p>";
+    // إخفاء جميع أقسام النتائج عند الخطأ
+    hadithResultsSection.classList.add('hidden');
+    explanationResultsSection.classList.add('hidden');
+    generalResultsSection.classList.remove('hidden'); // إظهار القسم العام لرسالة الخطأ
     return;
   }
 
-  // مسح النتائج السابقة فقط إذا كان بحثًا جديدًا (وليس إضافة المزيد)
+  // مسح النتائج السابقة وإخفاء الأقسام
   if (!append) {
-    document.getElementById('results').innerHTML = "";
-    currentFrom = 0; // إعادة تعيين الفهرس للبحث الجديد
-    document.getElementById('showMoreContainer').classList.add('hidden'); // إخفاء زر "إظهار المزيد"
+    resultsContainer.innerHTML = "";
+    hadithResults.innerHTML = "";
+    explanationResults.innerHTML = "";
+    document.getElementById('showMoreContainer').classList.add('hidden');
+
+    hadithResultsSection.classList.add('hidden');
+    explanationResultsSection.classList.add('hidden');
+    generalResultsSection.classList.add('hidden'); // إخفاء القسم العام أيضًا في البداية
   }
 
   // إظهار شريط التقدم ومؤشر التحميل
   updateProgress(0);
   document.getElementById('loadingSpinner').style.display = 'block';
-  simulateProgress(); // بدء محاكاة التقدم
-  updateSearchStatusText(); // بدء تحديث رسائل حالة البحث
+  simulateProgress();
+  updateSearchStatusText();
+
+  let apiUrl = `${API_BASE_URL}/ask?`;
+  const params = [];
+
+  if (q) {
+      params.push(`q=${encodeURIComponent(q)}`);
+  }
+  if (author) {
+      params.push(`author=${encodeURIComponent(author)}`);
+  }
+  if (hadithMode) {
+      params.push(`hadith_mode=true`);
+  }
+  apiUrl += params.join('&');
 
   try {
-    let apiUrl = `${API_BASE_URL}/ask?`;
-    const params = [];
-
-    if (q) {
-        params.push(`q=${encodeURIComponent(q)}`);
-    }
-    if (author) {
-        params.push(`author=${encodeURIComponent(author)}`);
-    }
-    params.push(`from=${currentFrom}`);
-    params.push(`size=${PAGE_SIZE}`);
-    apiUrl += params.join('&');
-
     const response = await fetch(apiUrl);
     const data = await response.json();
 
-    updateProgress(100); // اكتمال التقدم
-    document.getElementById('loadingSpinner').style.display = 'none'; // إخفاء مؤشر التحميل
-    stopSimulateProgress(); // إيقاف محاكاة التقدم بمجرد استلام البيانات
-    clearSearchStatusText(); // مسح رسائل حالة البحث عند الانتهاء
+    updateProgress(100);
+    document.getElementById('loadingSpinner').style.display = 'none';
+    stopSimulateProgress();
+    clearSearchStatusText();
 
     if (data.error) {
-      // عرض رسالة الخطأ من الخلفية
-      document.getElementById('results').innerHTML = `<p class='error'>خطأ: ${data.error}</p>`;
-      document.getElementById('showMoreContainer').classList.add('hidden'); // إخفاء الزر عند الخطأ
+      resultsContainer.innerHTML = `<p class='error'>خطأ: ${data.error}</p>`;
+      generalResultsSection.classList.remove('hidden'); // إظهار القسم العام لعرض الخطأ
+      hadithResultsSection.classList.add('hidden');
+      explanationResultsSection.classList.add('hidden');
       return;
     }
 
-    // عرض المصادر المسترجعة
-    if (data.sources_retrieved && data.sources_retrieved.length > 0) {
-      const newResultsHtml = data.sources_retrieved.map(doc => {
-        const full = doc.text_content;
-        const lines = full.split('\n'); // تقسيم النص إلى أسطر
-        let short = '';
-
-        // منطق تقليم النص: سطرين أو 200 حرف كحد أقصى إذا كان سطرًا واحدًا
-        if (lines.length >= 2) {
-          short = lines.slice(0, 2).join('<br>'); // أخذ أول سطرين وربطهما بفاصل سطر HTML
-          if (full.length > short.length) { // تحقق إذا كان النص الكامل أطول من النص المختصر
-            short += '...'; // إضافة ثلاث نقاط إذا كان هناك المزيد من النص
-          }
+    // عرض النتائج بناءً على وضع البحث
+    if (hadithMode) {
+        // عرض نتائج الأحاديث
+        if (data.hadith_sources && data.hadith_sources.length > 0) {
+            hadithResultsSection.classList.remove('hidden');
+            hadithResults.innerHTML = data.hadith_sources.map(doc => {
+                const full = doc.text_content;
+                const highlightedFull = highlightText(full, q);
+                const lines = highlightedFull.split('\n');
+                let short = '';
+                if (lines.length >= 2) { short = lines.slice(0, 2).join('<br>') + (full.length > short.length ? '...' : ''); } else { short = highlightedFull.slice(0, 200) + (highlightedFull.length > 200 ? '...' : ''); }
+                const id = Math.random().toString(36).substring(7);
+                return `<div class='result'>
+                  <div id='short-${id}' 
+                       data-full-text="${encodeURIComponent(full)}"
+                       data-book-title="${encodeURIComponent(doc.book_title || '')}"
+                       data-author-name="${encodeURIComponent(doc.author_name || '')}"
+                       data-part-number="${encodeURIComponent(doc.part_number || '')}"
+                       data-page-number="${encodeURIComponent(doc.page_number || '')}">
+                       <p class="text-content-display" onclick="showFull('${id}')">${short}</p>
+                  </div>
+                  <small class="book-meta">
+                    الكتاب: ${doc.book_title || 'غير معروف'}، المؤلف: ${doc.author_name || 'غير معروف'}، الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}
+                  </small>
+                </div>`;
+            }).join('');
         } else {
-          // إذا كان النص أقل من سطرين (أي سطر واحد طويل)، قم بتقليمه بالأحرف
-          short = full.slice(0, 200); // خذ أول 200 حرف
-          if (full.length > 200) {
-            short += '...'; // إضافة ثلاث نقاط إذا كان النص أطول من 200 حرف
-          }
+            hadithResultsSection.classList.add('hidden');
         }
-        
-        const id = Math.random().toString(36).substring(7); // معرف فريد لكل مصدر
-        
-        // تحويل part_number و page_number إلى أرقام أو 0 إذا كانت "غير متوفر" أو null
-        // هذا هو التعديل الذي يضمن إرسال قيم رقمية للواجهة الخلفية
-        const partNum = (doc.part_number === "غير متوفر" || doc.part_number === null || doc.part_number === undefined || isNaN(doc.part_number)) ? 0 : doc.part_number;
-        const pageNum = (doc.page_number === "غير متوفر" || doc.page_number === null || doc.page_number === undefined || isNaN(doc.page_number)) ? 0 : doc.page_number;
 
-        // تخزين النص الكامل في سمة بيانات (data-full-text)
-        // وتخزين بيانات الكتاب للملاحة السياقية
-        return `<div class='result'>
-          <div id='short-${id}' 
-               data-full-text="${encodeURIComponent(full)}"
-               data-book-title="${encodeURIComponent(doc.book_title || '')}"
-               data-author-name="${encodeURIComponent(doc.author_name || '')}"
-               data-part-number="${encodeURIComponent(partNum)}"
-               data-page-number="${encodeURIComponent(pageNum)}">
-               <p class="text-content-display" onclick="showFull('${id}')">${short} 
-               </p>
-          </div>
-          <small class="book-meta">
-            الكتاب: ${doc.book_title || 'غير معروف'}، المؤلف: ${doc.author_name || 'غير معروف'}، الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}
-          </small>
-        </div>`;
-      }).join('');
+        // عرض شروح الأحاديث
+        if (data.explanation_sources && data.explanation_sources.length > 0) {
+            explanationResultsSection.classList.remove('hidden');
+            explanationResults.innerHTML = data.explanation_sources.map(doc => {
+                const full = doc.text_content;
+                const highlightedFull = highlightText(full, q);
+                const lines = highlightedFull.split('\n');
+                let short = '';
+                if (lines.length >= 2) { short = lines.slice(0, 2).join('<br>') + (full.length > short.length ? '...' : ''); } else { short = highlightedFull.slice(0, 200) + (highlightedFull.length > 200 ? '...' : ''); }
+                const id = Math.random().toString(36).substring(7);
+                return `<div class='result'>
+                  <div id='short-${id}' 
+                       data-full-text="${encodeURIComponent(full)}"
+                       data-book-title="${encodeURIComponent(doc.book_title || '')}"
+                       data-author-name="${encodeURIComponent(doc.author_name || '')}"
+                       data-part-number="${encodeURIComponent(doc.part_number || '')}"
+                       data-page-number="${encodeURIComponent(doc.page_number || '')}">
+                       <p class="text-content-display" onclick="showFull('${id}')">${short}</p>
+                  </div>
+                  <small class="book-meta">
+                    الكتاب: ${doc.book_title || 'غير معروف'}، المؤلف: ${doc.author_name || 'غير معروف'}، الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}
+                  </small>
+                </div>`;
+            }).join('');
+        } else {
+            explanationResultsSection.classList.add('hidden');
+        }
 
-      // إضافة النتائج الجديدة إلى النتائج الموجودة
-      document.getElementById('results').insertAdjacentHTML('beforeend', newResultsHtml);
+        // إذا لم يتم العثور على أي نتائج في وضع الحديث
+        if (data.hadith_sources.length === 0 && data.explanation_sources.length === 0) {
+            resultsContainer.innerHTML = "<p class='error'>لم يتم العثور على أحاديث أو شروح مطابقة لاستعلامك.</p>";
+            generalResultsSection.classList.remove('hidden');
+        }
 
-      // تحديث الفهرس للطلب التالي
-      currentFrom += data.sources_retrieved.length;
+    } else {
+        // عرض النتائج العامة (الوضع الافتراضي)
+        generalResultsSection.classList.remove('hidden');
+        if (data.sources_retrieved && data.sources_retrieved.length > 0) {
+            const newResultsHtml = data.sources_retrieved.map(doc => {
+                const full = doc.text_content;
+                const highlightedFull = highlightText(full, q);
+                const lines = highlightedFull.split('\n');
+                let short = '';
+                if (lines.length >= 2) { short = lines.slice(0, 2).join('<br>') + (full.length > short.length ? '...' : ''); } else { short = highlightedFull.slice(0, 200) + (highlightedFull.length > 200 ? '...' : ''); }
+                const id = Math.random().toString(36).substring(7);
+                return `<div class='result'>
+                  <div id='short-${id}' 
+                       data-full-text="${encodeURIComponent(full)}"
+                       data-book-title="${encodeURIComponent(doc.book_title || '')}"
+                       data-author-name="${encodeURIComponent(doc.author_name || '')}"
+                       data-part-number="${encodeURIComponent(doc.part_number || '')}"
+                       data-page-number="${encodeURIComponent(doc.page_number || '')}">
+                       <p class="text-content-display" onclick="showFull('${id}')">${short}</p>
+                  </div>
+                  <small class="book-meta">
+                    الكتاب: ${doc.book_title || 'غير معروف'}، المؤلف: ${doc.author_name || 'غير معروف'}، الجزء: ${doc.part_number || 'غير متوفر'}، الصفحة: ${doc.page_number || 'غير متوفر'}
+                  </small>
+                </div>`;
+            }).join('');
+            resultsContainer.insertAdjacentHTML('beforeend', newResultsHtml);
 
-      // إظهار أو إخفاء زر "إظهار المزيد"
-      if (data.sources_retrieved.length < PAGE_SIZE) {
-        document.getElementById('showMoreContainer').classList.add('hidden'); // لا توجد المزيد من النتائج
-      } else {
-        document.getElementById('showMoreContainer').classList.remove('hidden'); // توجد المزيد من النتائج
-      }
-      updateTextFontSizes(); // تطبيق حجم الخط بعد تحميل النتائج
-
-    } else if (currentFrom === 0) { // لم يتم العثور على نتائج في البحث الأولي
-      document.getElementById('results').innerHTML = "<p class='error'>لم يتم العثور على نتائج لاستعلامك.</p>";
-      document.getElementById('showMoreContainer').classList.add('hidden');
-    } else { // لا توجد المزيد من النتائج لإضافتها
-        document.getElementById('showMoreContainer').classList.add('hidden');
+            currentFrom += data.sources_retrieved.length;
+            if (data.sources_retrieved.length < PAGE_SIZE) {
+                document.getElementById('showMoreContainer').classList.add('hidden');
+            } else {
+                document.getElementById('showMoreContainer').classList.remove('hidden');
+            }
+            updateTextFontSizes();
+        } else if (currentFrom === 0) {
+            resultsContainer.innerHTML = "<p class='error'>لم يتم العثور على نتائج لاستعلامك.</p>";
+            document.getElementById('showMoreContainer').classList.add('hidden');
+        } else {
+            document.getElementById('showMoreContainer').classList.add('hidden');
+        }
     }
 
   } catch (err) {
     updateProgress(100);
     document.getElementById('loadingSpinner').style.display = 'none';
-    stopSimulateProgress(); // إيقاف محاكاة التقدم عند حدوث خطأ
-    clearSearchStatusText(); // مسح رسائل حالة البحث عند حدوث خطأ
-    document.getElementById('results').innerHTML = "<p class='error'>تعذّر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط</p>";
-    document.getElementById('showMoreContainer').classList.add('hidden'); // إخفاء الزر عند الخطأ
+    stopSimulateProgress();
+    clearSearchStatusText();
+    resultsContainer.innerHTML = "<p class='error'>تعذّر تحميل النتائج: تحقق من الاتصال أو من صحة الرابط</p>";
+    generalResultsSection.classList.remove('hidden');
+    hadithResultsSection.classList.add('hidden');
+    explanationResultsSection.classList.add('hidden');
     console.error("خطأ في جلب البيانات:", err);
   }
 }
@@ -407,23 +541,19 @@ async function showFull(id) {
   const shortElement = document.getElementById('short-' + id);
   const fullText = decodeURIComponent(shortElement.dataset.fullText);
   
-  const bookTitle = shortElement.dataset.bookTitle;
-  const authorName = shortElement.dataset.authorName;
-  const partNumber = shortElement.dataset.partNumber;
-  const pageNumber = shortElement.dataset.pageNumber;
+  const bookTitle = shortElement.dataset.book_title;
+  const authorName = shortElement.dataset.author_name;
+  const partNumber = shortElement.dataset.part_number;
+  const pageNumber = shortElement.dataset.page_number;
 
-  // تحديث النص في العنصر الرئيسي الذي يحمل النص
   shortElement.querySelector('.text-content-display').innerHTML = fullText;
   
-  // إزالة أي أزرار تنقل سابقة لتجنب التكرار
   const parentResultDiv = shortElement.closest('.result');
   const existingNavButtons = parentResultDiv.querySelector('.navigation-buttons');
   if (existingNavButtons) {
       existingNavButtons.remove();
   }
 
-  // إضافة أزرار التنقل و زر فتح الكتاب كاملاً (يوجه لصفحة جديدة)
-  // الترتيب: النص التالي (يسار)، فتح الكتاب كاملاً (وسط)، النص السابق (يمين)
   const navButtonsHtml = `
     <div class="navigation-buttons">
       <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'next', '${id}')">النص التالي</button>
@@ -431,7 +561,6 @@ async function showFull(id) {
       <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${partNumber}', '${pageNumber}', 'prev', '${id}')">النص السابق</button>
     </div>
   `;
-  // إضافة الأزرار بعد الـ <small> التي تحتوي على بيانات الكتاب
   shortElement.closest('.result').querySelector('.book-meta').insertAdjacentHTML('afterend', navButtonsHtml);
 }
 
@@ -450,20 +579,16 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
     const parentResultDiv = currentTextElementContainer.closest('.result');
     const bookMetaElement = parentResultDiv.querySelector('.book-meta');
     
-    // إزالة أي أزرار تنقل سابقة لتجنب التكرار
     const existingNavButtons = parentResultDiv.querySelector('.navigation-buttons');
     if (existingNavButtons) {
         existingNavButtons.remove();
     }
 
-    // عرض مؤشر تحميل داخل العنصر الحالي
     currentTextDisplayElement.innerHTML = `<div class="loading-spinner" style="display: block; margin: 10px auto;"></div><p class="text-center text-gray-500">جاري تحميل النص...</p>`;
 
     try {
-        // فك تشفير المعلمات قبل استخدامها في URL
         const decodedBookTitle = decodeURIComponent(bookTitle);
         const decodedAuthorName = decodeURIComponent(authorName);
-        // التأكد من أن القيم رقمية قبل فك التشفير وإرسالها
         const decodedPartNumber = parseInt(decodeURIComponent(currentPartNumber)) || 0;
         const decodedPageNumber = parseInt(decodeURIComponent(currentPageNumber)) || 0;
 
@@ -484,37 +609,27 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
             const newPartNumber = data.part_number;
             const newPageNumber = data.page_number;
 
-            // تحديث النص في العنصر الحالي
             currentTextDisplayElement.innerHTML = newText;
             
-            // تحديث سمات البيانات في العنصر لتعكس النص الجديد
-            // التأكد من أن القيم المخزنة هي أرقام أو 0
-            const updatedPartNum = (newPartNumber === "غير متوفر" || newPartNumber === null || newPartNumber === undefined || isNaN(newPartNumber)) ? 0 : newPartNumber;
-            const updatedPageNum = (newPageNumber === "غير متوفر" || newPageNumber === null || newPageNumber === undefined || isNaN(newPageNumber)) ? 0 : newPageNumber;
-
-            currentTextElementContainer.dataset.fullText = encodeURIComponent(newText); // تحديث النص الكامل المشفر
+            currentTextElementContainer.dataset.fullText = encodeURIComponent(newText);
             currentTextElementContainer.dataset.bookTitle = encodeURIComponent(newBookTitle);
             currentTextElementContainer.dataset.authorName = encodeURIComponent(newAuthorName);
-            currentTextElementContainer.dataset.partNumber = encodeURIComponent(updatedPartNum);
-            currentTextElementContainer.dataset.pageNumber = encodeURIComponent(updatedPageNum);
+            currentTextElementContainer.dataset.partNumber = encodeURIComponent(newPartNumber);
+            currentTextElementContainer.dataset.pageNumber = encodeURIComponent(newPageNumber);
 
-            // تحديث معلومات المصدر في الواجهة
             bookMetaElement.textContent = `الكتاب: ${newBookTitle || 'غير معروف'}، المؤلف: ${newAuthorName || 'غير معروف'}، الجزء: ${newPartNumber || 'غير متوفر'}، الصفحة: ${newPageNumber || 'غير متوفر'}`;
 
-
-            // إعادة إضافة أزرار التنقل للنص الجديد
             const newNavButtonsHtml = `
                 <div class="navigation-buttons">
-                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(updatedPartNum)}', '${encodeURIComponent(updatedPageNum)}', 'next', '${originalElementId}')">النص التالي</button>
+                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(newPartNumber)}', '${encodeURIComponent(newPageNumber)}', 'next', '${originalElementId}')">النص التالي</button>
                   <button class="open-book-button" onclick="viewFullBook('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}')">فتح الكتاب كاملاً</button>
-                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(updatedPartNum)}', '${encodeURIComponent(updatedPageNum)}', 'prev', '${originalElementId}')">النص السابق</button>
+                  <button onclick="getSequentialText('${encodeURIComponent(newBookTitle)}', '${encodeURIComponent(newAuthorName)}', '${encodeURIComponent(newPartNumber)}', '${encodeURIComponent(newPageNumber)}', 'prev', '${originalElementId}')">النص السابق</button>
                 </div>
             `;
             bookMetaElement.insertAdjacentHTML('afterend', newNavButtonsHtml);
 
         } else {
             currentTextDisplayElement.innerHTML = `<p class='error'>${data.message || data.error || 'لم يتم العثور على نص في هذا الاتجاه.'}</p>`;
-            // إعادة إضافة الأزرار حتى لو لم يتم العثور على نص جديد
             const newNavButtonsHtml = `
                 <div class="navigation-buttons">
                   <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'next', '${originalElementId}')">النص التالي</button>
@@ -527,7 +642,6 @@ async function getSequentialText(bookTitle, authorName, currentPartNumber, curre
     } catch (error) {
         console.error('خطأ في جلب النص السياقي:', error);
         currentTextDisplayElement.innerHTML = `<p class='error'>فشل تحميل النص: ${error.message || 'خطأ في الاتصال.'}</p>`;
-        // إعادة إضافة الأزرار حتى لو حدث خطأ
         const newNavButtonsHtml = `
             <div class="navigation-buttons">
               <button onclick="getSequentialText('${bookTitle}', '${authorName}', '${currentPartNumber}', '${currentPageNumber}', 'next', '${originalElementId}')">النص التالي</button>
@@ -553,17 +667,15 @@ function updateProgress(val) {
  */
 function simulateProgress() {
   let val = 0;
-  // مسح أي فاصل زمني سابق لتجنب التداخل
   stopSimulateProgress(); 
   const interval = setInterval(() => {
-    if (val < 90) { // تتوقف عند 90% لتظهر اكتمالها عند استلام البيانات
-      val += 5; // زيادة أقل لتقدم أكثر سلاسة
+    if (val < 90) {
+      val += 5;
       updateProgress(val);
     } else {
       clearInterval(interval);
     }
-  }, 200); // تحديث أسرع
-  // حفظ مرجع الفاصل الزمني لمسحه عند اكتمال البحث
+  }, 200);
   document.getElementById('progress-bar').dataset.interval = interval;
 }
 
@@ -573,7 +685,7 @@ function simulateProgress() {
 function stopSimulateProgress() {
   const interval = document.getElementById('progress-bar').dataset.interval;
   if (interval) {
-    clearInterval(parseInt(interval)); // تحويل إلى عدد صحيح قبل المسح
+    clearInterval(parseInt(interval));
     document.getElementById('progress-bar').dataset.interval = '';
   }
 }
@@ -583,7 +695,6 @@ function stopSimulateProgress() {
  */
 function updateSearchStatusText() {
   const statusElement = document.getElementById('searchStatusText');
-  // مسح أي مؤقتات سابقة
   searchStatusTimeouts.forEach(clearTimeout);
   searchStatusTimeouts = [];
 
@@ -591,15 +702,15 @@ function updateSearchStatusText() {
 
   searchStatusTimeouts.push(setTimeout(() => {
     statusElement.textContent = "البحث في 7358 كتاب...";
-  }, 1000)); // بعد 1 ثانية
+  }, 1000));
 
   searchStatusTimeouts.push(setTimeout(() => {
     statusElement.textContent = "أكثر من ثمانية ملايين نص...";
-  }, 4000)); // بعد 4 ثوانٍ (1 + 3)
+  }, 4000));
 
   searchStatusTimeouts.push(setTimeout(() => {
-    statusElement.textContent = ""; // إخفاء النص
-  }, 9000)); // بعد 9 ثوانٍ (4 + 5)
+    statusElement.textContent = "";
+  }, 9000));
 }
 
 /**
@@ -617,16 +728,14 @@ function clearSearchStatusText() {
  * @param {string} authorName - اسم المؤلف.
  */
 function viewFullBook(bookTitle, authorName) {
-    // بناء رابط URL لصفحة book_viewer.html مع معلمات الكتاب والمؤلف
     const url = `book_viewer.html?book_title=${encodeURIComponent(bookTitle)}&author_name=${encodeURIComponent(authorName)}`;
-    window.open(url, '_blank'); // فتح الرابط في علامة تبويب جديدة
+    window.open(url, '_blank');
 }
 
 
 // ------------------------------------------------------------------
 // ربط مستمعي الأحداث بعد تحميل DOM
 document.addEventListener('DOMContentLoaded', () => {
-    // ربط أزرار تكبير/تصغير الخط
     increaseFontButton.addEventListener('click', () => {
         if (currentResultsFontSize < MAX_FONT_SIZE) {
             currentResultsFontSize += FONT_SIZE_STEP;
@@ -641,7 +750,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // تطبيق حجم الخط الأولي عند تحميل الصفحة
     updateTextFontSizes();
 });
 
